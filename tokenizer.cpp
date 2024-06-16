@@ -56,8 +56,36 @@ struct tokenizer_model {
     std::vector<std::string>        merges;
 };
 
-void set_special_tokens(nlohmann::json added_tokens, struct tokenizer_model*) {
-    struct special_token object;
+std::vector<struct special_token*> set_special_tokens(nlohmann::json added_tokens) {
+
+    if (added_tokens.is_null()) {
+        throw std::invalid_argument("Expected a valid added_tokens argument, got null instead.");
+    }
+
+    std::vector<struct special_token*> token_set;
+
+    // added_tokens is a JSON list of JSON objects
+    for (nlohmann::json object : added_tokens) {
+        // technically, we can have these in the stack. tbh, not sure if matters.
+        struct special_token* token = (struct special_token*) malloc(sizeof(struct special_token));
+        token->id                   = object["id"];
+        token->content              = object["content"];
+        token->single_word          = object["single_word"];
+        token->lstrip               = object["lstrip"];
+        token->rstrip               = object["rstrip"];
+        token->normalized           = object["normalized"];
+        token->special              = object["special"];
+        token_set.push_back(token);
+    }
+
+    return token_set;
+}
+
+void unset_special_tokens(std::vector<struct special_token*> token_set) {
+    // Deallocate memory for all struct special_token objects
+    for (auto token : token_set) {
+        delete token;
+    }
 }
 
 int main(int argc, char* argv[]) {
