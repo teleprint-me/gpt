@@ -1,0 +1,22 @@
+{
+  "configurations": [
+    {
+      "name": "Linux",
+      "includePath": [
+        "/usr/include",
+        "/usr/local/include",
+        "${workspaceFolder}/imgui",
+        "${workspaceFolder}/imgui/backends",
+        "${workspaceFolder}/implot",
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/source"
+      ],
+      "defines": [],
+      "compilerPath": "/usr/bin/clang",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-clang-x64"
+    }
+  ],
+  "version": 4
+}
