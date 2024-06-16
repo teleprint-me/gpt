@@ -29,19 +29,29 @@ struct MetaToken {
 
 // TODO/WIP
 struct normalizer {
-    std::string type;
-    bool        add_prefix_space;
-    bool        trim_offsets;
+    std::string type; // type is always available if normalizer is not null
+
+    // TODO: Handle sequences if type is Sequence
+
+    // default to false because these member attributes may not be available
+    bool add_prefix_space = false;
+    bool trim_offsets     = false;
 };
 
 // TODO/WIP
 struct pre_tokenizer {
-    std::string type;
-    bool        add_prefix_space;
-    bool        trim_offsets;
+    std::string type; // type is always available if pre_tokenizer is not null
+
+    // TODO: Handle sequences if type is Sequence
+    std::vector<nlohmann::json> tokenizers;
+
+    // default to false because these member attributes may not be available
+    bool add_prefix_space = false;
+    bool trim_offsets     = false;
 };
 
 struct Vocabulary {
+  public:
     size_t                        size;
     std::map<std::string, size_t> map;
     std::vector<std::string>      tokens;
@@ -54,6 +64,21 @@ struct Vocabulary {
     struct MetaToken* unk_token = nullptr;
 
     std::vector<std::string> merges;
+
+    Vocabulary(const nlohmann::json &model) {
+        // model is the metadata as a JSON object
+        size   = model["vocab"].size(); // size of the vocab
+        map    = model["vocab"];        // vocab is a mapping between tokens and ids
+        merges = model["merges"];       // merges is a vector of strings
+
+        for (const auto &pair : model["vocab"].items()) {
+            // invert the mapping
+            std::string token = pair.key();
+            size_t      id    = pair.value();
+            // map the vector element
+            tokens[id]        = token;
+        }
+    }
 };
 
 struct tokenizer_model {
@@ -63,11 +88,20 @@ struct tokenizer_model {
     // Encapsulate the vocabulary and related items together
     Vocabulary vocab;
 
-    size_t      token_to_id(const std::string &token);
-    std::string id_to_token(size_t encoding) const;
+    size_t size() {
+        return vocab.size;
+    };
 
-    bool fuse_unk{false};
-    bool byte_fallback{false};
+    size_t token_to_id(const std::string &token) {
+        return vocab.map[token];
+    };
+
+    std::string id_to_token(size_t encoding) const {
+        return vocab.tokens[encoding];
+    };
+
+    bool fuse_unk      = false;
+    bool byte_fallback = false;
 
     // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
     nlohmann::json normalizer;
