@@ -1,3 +1,7 @@
+# Formal Algorithms for Transformers
+
+Anyone who says this is easy is inexperienced, has experience and lacks the self awareness of the amount of effort it took to acquire their skills, and/or has an eidetic memory. In any case, I can't take what they say with any form of seriousness and must accept their words as a grain of salt.
+
 ## Algorithm 1: Token Embedding
 
 Algorithm 1 describes a simple lookup operation that converts each unique vocabulary element into
