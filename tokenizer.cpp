@@ -41,9 +41,23 @@ struct tokenizer_model {
 
     std::string type;
 
-    struct special_token* bos_token;
-    struct special_token* eos_token;
-    struct special_token* unk_token;
+    size_t                        size;
+    std::map<std::string, size_t> vocab;
+    std::vector<std::string>      merges;
+
+    std::vector<struct special_token*> special_tokens;
+
+    // Need to know these advance. Must be set on a model-by-model basis as a result.
+    // Should be set to nullptr by default.
+    struct special_token* bos_token = nullptr;
+    struct special_token* eos_token = nullptr;
+    struct special_token* unk_token = nullptr;
+
+    size_t      token_to_id(std::string token);
+    std::string id_to_token(size_t encoding);
+
+    uint32_t                                     vocab_size;
+    std::vector<std::map<std::string, uint32_t>> vocab;
 
     bool fuse_unk;
     bool byte_fallback;
