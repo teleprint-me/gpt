@@ -69,7 +69,7 @@ struct Vocabulary {
     Vocabulary(const nlohmann::json &model) {
         // model is the metadata as a JSON object
         size   = model["vocab"].size(); // size of the vocab
-        map    = model["vocab"];        // vocab is a mapping between tokens and ids
+        map    = model["vocab"];        // vocab is a mapping between f(V*) : token -> id
         merges = model["merges"];       // merges is a vector of strings
 
         for (const auto &pair : model["vocab"].items()) {
