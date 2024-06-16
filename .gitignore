@@ -6,6 +6,7 @@ alt
 /build
 /local
 /logs
+/specs
 
 # ignore local files
 *.ini
