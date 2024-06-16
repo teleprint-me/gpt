@@ -2,15 +2,7 @@
   "configurations": [
     {
       "name": "Linux",
-      "includePath": [
-        "/usr/include",
-        "/usr/local/include",
-        "${workspaceFolder}/imgui",
-        "${workspaceFolder}/imgui/backends",
-        "${workspaceFolder}/implot",
-        "${workspaceFolder}/include",
-        "${workspaceFolder}/source"
-      ],
+      "includePath": ["/usr/include", "/usr/local/include"],
       "defines": [],
       "compilerPath": "/usr/bin/clang",
       "cStandard": "c17",
