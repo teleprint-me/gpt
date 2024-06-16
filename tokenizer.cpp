@@ -13,14 +13,18 @@
 #include <vector>
 #include <wait.h>
 
-struct special_token {
+// NOTE: MetaToken represents an object element found within added_tokens in the tokenizer.json
+struct MetaToken {
+    // NOTE: These are required to be defined at runtime.
     int         id;
     std::string content;
-    bool        single_word;
-    bool        lstrip;
-    bool        rstrip;
-    bool        normalized;
-    bool        special;
+
+    // NOTE: Always default to false. Never assume anything is true.
+    bool single_word = false;
+    bool lstrip      = false;
+    bool rstrip      = false;
+    bool normalized  = false;
+    bool special     = false;
 };
 
 // TODO/WIP
@@ -37,66 +41,66 @@ struct pre_tokenizer {
     bool        trim_offsets;
 };
 
+struct Vocabulary {
+    size_t                        size;
+    std::map<std::string, size_t> map;
+    std::vector<std::string>      tokens;
+
+    std::vector<struct MetaToken*> added_tokens;
+
+    // Need to know these advance. Must be set on a model-by-model basis as a result.
+    struct MetaToken* bos_token = nullptr;
+    struct MetaToken* eos_token = nullptr;
+    struct MetaToken* unk_token = nullptr;
+
+    std::vector<std::string> merges;
+};
+
 struct tokenizer_model {
 
     std::string type;
 
-    size_t                        size;
-    std::map<std::string, size_t> vocab;
-    std::vector<std::string>      merges;
+    // Encapsulate the vocabulary and related items together
+    Vocabulary vocab;
 
-    std::vector<struct special_token*> special_tokens;
+    size_t      token_to_id(const std::string &token);
+    std::string id_to_token(size_t encoding) const;
 
-    // Need to know these advance. Must be set on a model-by-model basis as a result.
-    // Should be set to nullptr by default.
-    struct special_token* bos_token = nullptr;
-    struct special_token* eos_token = nullptr;
-    struct special_token* unk_token = nullptr;
+    bool fuse_unk{false};
+    bool byte_fallback{false};
 
-    size_t      token_to_id(std::string token);
-    std::string id_to_token(size_t encoding);
-
-    uint32_t                                     vocab_size;
-    std::vector<std::map<std::string, uint32_t>> vocab;
-
-    bool fuse_unk;
-    bool byte_fallback;
-
-    // TODO/WIP
+    // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
     nlohmann::json normalizer;
     nlohmann::json pre_tokenizer;
-
-    std::map<std::string, uint32_t> vocab;
-    std::vector<std::string>        merges;
 };
 
-std::vector<struct special_token*> set_special_tokens(nlohmann::json added_tokens) {
+std::vector<struct MetaToken*> set_MetaTokens(nlohmann::json added_tokens) {
 
     if (added_tokens.is_null()) {
         throw std::invalid_argument("Expected a valid added_tokens argument, got null instead.");
     }
 
-    std::vector<struct special_token*> token_set;
+    std::vector<struct MetaToken*> token_set;
 
     // added_tokens is a JSON list of JSON objects
     for (nlohmann::json object : added_tokens) {
         // technically, we can have these in the stack. tbh, not sure if matters.
-        struct special_token* token = (struct special_token*) malloc(sizeof(struct special_token));
-        token->id                   = object["id"];
-        token->content              = object["content"];
-        token->single_word          = object["single_word"];
-        token->lstrip               = object["lstrip"];
-        token->rstrip               = object["rstrip"];
-        token->normalized           = object["normalized"];
-        token->special              = object["special"];
+        struct MetaToken* token = (struct MetaToken*) malloc(sizeof(struct MetaToken));
+        token->id               = object["id"];
+        token->content          = object["content"];
+        token->single_word      = object["single_word"];
+        token->lstrip           = object["lstrip"];
+        token->rstrip           = object["rstrip"];
+        token->normalized       = object["normalized"];
+        token->special          = object["special"];
         token_set.push_back(token);
     }
 
     return token_set;
 }
 
-void unset_special_tokens(std::vector<struct special_token*> token_set) {
-    // Deallocate memory for all struct special_token objects
+void unset_MetaTokens(std::vector<struct MetaToken*> token_set) {
+    // Deallocate memory for all struct MetaToken objects
     for (auto token : token_set) {
         delete token;
     }
