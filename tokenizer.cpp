@@ -75,6 +75,12 @@ struct TokenizerModel {
     bool ignore_merges = false;
 
     TokenizerModel(const nlohmann::json &model) {
+        if (!model.contains("type")) {
+            type = "BPE";
+        } else {
+            type = model["type"];
+        }
+
         // model is the metadata as a JSON object
         size   = model["vocab"].size(); // size of the vocab
         map    = model["vocab"];        // vocab is the result of V* : t -> id
