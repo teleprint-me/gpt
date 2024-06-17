@@ -13,6 +13,14 @@
 #include <vector>
 #include <wait.h>
 
+struct SpecialToken {
+  public:
+    size_t      id;
+    std::string content;
+
+    SpecialToken(size_t id, const std::string &content = "<unk>") : id(id), content(content) {}
+};
+
 // NOTE: AddedToken represents an object element found within added_tokens in the tokenizer.json
 struct AddedToken {
   private:
@@ -148,9 +156,9 @@ struct Tokenizer {
     std::vector<struct AddedToken*> added_tokens;
 
     // Need to know these advance. Must be set on a model-by-model basis as a result.
-    struct AddedToken* bos_token = nullptr;
-    struct AddedToken* eos_token = nullptr;
-    struct AddedToken* unk_token = nullptr;
+    struct SpecialToken* bos_token = nullptr;
+    struct SpecialToken* eos_token = nullptr;
+    struct SpecialToken* unk_token = nullptr;
 
     size_t size() {
         return model.size();
