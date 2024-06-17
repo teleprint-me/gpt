@@ -29,6 +29,7 @@ struct MetaToken {
 
 // TODO/WIP
 struct Normalizer {
+    // there are 10 possible types of normalizers
     std::string type; // type is always available if normalizer is not null
 
     // TODO: Handle sequences if type is Sequence
@@ -41,6 +42,7 @@ struct Normalizer {
 
 // TODO/WIP
 struct PreTokenizer {
+    // there are 9 possible types of pre_tokenizers
     std::string type; // type is always available if pre_tokenizer is not null
 
     // TODO: Handle sequences if type is Sequence
@@ -54,7 +56,7 @@ struct PreTokenizer {
 struct TokenizerModel {
   public:
     size_t                        size;
-    std::map<std::string, size_t> map;
+    std::map<std::string, size_t> vocab;
     std::vector<std::string>      tokens;
 
     std::vector<struct MetaToken*> added_tokens;
@@ -75,24 +77,37 @@ struct TokenizerModel {
     bool ignore_merges = false;
 
     TokenizerModel(const nlohmann::json &model) {
-        if (!model.contains("type")) {
-            type = "BPE";
-        } else {
-            type = model["type"];
-        }
+        type = model.contains("type") ? model["type"] : "BPE";
 
         // model is the metadata as a JSON object
         size   = model["vocab"].size(); // size of the vocab
-        map    = model["vocab"];        // vocab is the result of V* : t -> id
+        vocab  = model["vocab"];        // vocab is the result of V* : t -> id
         merges = model["merges"];       // merges is a vector of strings
 
-        for (const auto &pair : model["vocab"].items()) {
-            // invert the mapping
-            std::string token = pair.key();
-            size_t      id    = pair.value();
-            // map the vector element
-            tokens[id]        = token;
+        // map vocab to vector elements
+        for (auto &[token, id] : model["vocab"].items()) {
+            tokens[id] = token;
         }
+
+        merges = model["merges"];
+
+        continuing_subword_prefix
+            = model.contains("continuing_subword_prefix") ? model["continuing_subword_prefix"] : "";
+
+        end_of_word_suffix
+            = model.contains("end_of_word_suffix") ? model["end_of_word_suffix"] : "";
+
+        dropout = model.contains("dropout") ? model["dropout"].template get<float>() : 0.0f;
+
+        fuse_unk = model.contains("fuse_unk") ? model["fuse_unk"].template get<bool>() : false;
+
+        byte_fallback
+            = model.contains("byte_fallback") ? model["byte_fallback"].template get<bool>() : false;
+
+        ignore_merges
+            = model.contains("ignore_merges") ? model["ignore_merges"].template get<bool>() : false;
+
+        unk_token = model.contains("unk_token") ? model["unk_token"] : "";
     }
 };
 
@@ -112,7 +127,7 @@ struct Tokenizer {
     };
 
     size_t token_to_id(const std::string &token) {
-        return model.map[token];
+        return model.vocab[token];
     };
 
     std::string id_to_token(size_t encoding) const {
@@ -151,7 +166,7 @@ std::vector<struct MetaToken*> allocate_meta_tokens(nlohmann::json added_tokens)
 
 void deallocate_meta_tokens(std::vector<struct MetaToken*> token_set) {
     // Deallocate memory for all struct MetaToken objects
-    for (auto token : token_set) {
+    for (struct MetaToken* token : token_set) {
         delete token;
     }
 }
