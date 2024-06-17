@@ -15,16 +15,30 @@
 
 // NOTE: AddedToken represents an object element found within added_tokens in the tokenizer.json
 struct AddedToken {
-    // NOTE: These are required to be defined at runtime.
-    int         id;
-    std::string content;
+  private:
+    nlohmann::json __token__;
 
-    // NOTE: Always default to false. Never assume anything is true.
-    bool single_word = false;
-    bool lstrip      = false;
-    bool rstrip      = false;
-    bool normalized  = false;
-    bool special     = false;
+  public:
+    AddedToken(nlohmann::json token) {
+        __token__ = token;
+
+        id          = token["id"];
+        content     = token["content"];
+        single_word = token["single_word"];
+        lstrip      = token["lstrip"];
+        rstrip      = token["rstrip"];
+        normalized  = token["normalized"];
+        special     = token["special"];
+    }
+
+    size_t      id;      // Unique identifier of the token
+    std::string content; // Content of the token
+
+    bool single_word; // Whether this token is a single word
+    bool lstrip;      // Left strip flag
+    bool rstrip;      // Right strip flag
+    bool normalized;  // Normalized flag
+    bool special;     // Special flag
 };
 
 // TODO/WIP
