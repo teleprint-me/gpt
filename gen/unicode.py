@@ -1,5 +1,5 @@
 """
-Module: tok.gguf.unicode
+Module: gen.unicode
 
 References:
 - Unicode Chapter 3 Unicode Conformance
