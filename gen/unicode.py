@@ -10,11 +10,15 @@ References:
     - https://docs.python.org/3/library/ctypes.html
 """
 
+import argparse
 import ctypes
 import dataclasses
+import logging
 import unicodedata
 
 import regex
+
+logger = logging.getLogger(__file__)
 
 
 class CodepointFlags(ctypes.Structure):
@@ -282,18 +286,10 @@ class CodepointProcessor:
 
 
 """
-Module: tok.gguf.cli.unicode
+Module: gen.unicode
 
 Generate 'unicode-data.cpp' and 'unicode-data.h'
 """
-
-import argparse
-import ctypes
-import logging
-
-from ..unicode import CodepointFlags, CodepointProcessor
-
-logger = logging.getLogger(__file__)
 
 
 def get_arguments() -> argparse.Namespace:
