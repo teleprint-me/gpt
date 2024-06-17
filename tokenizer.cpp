@@ -51,7 +51,7 @@ struct PreTokenizer {
     bool trim_offsets     = false;
 };
 
-struct Vocabulary {
+struct TokenizerModel {
   public:
     size_t                        size;
     std::map<std::string, size_t> map;
@@ -59,14 +59,21 @@ struct Vocabulary {
 
     std::vector<struct MetaToken*> added_tokens;
 
-    // Need to know these advance. Must be set on a model-by-model basis as a result.
-    struct MetaToken* bos_token = nullptr;
-    struct MetaToken* eos_token = nullptr;
-    struct MetaToken* unk_token = nullptr;
-
     std::vector<std::string> merges;
 
-    Vocabulary(const nlohmann::json &model) {
+    std::string type;
+    std::string unk_token;
+
+    // note: may be null or string
+    std::string continuing_subword_prefix;
+    std::string end_of_word_suffix;
+
+    float dropout;
+
+    bool fuse_unk      = false;
+    bool byte_fallback = false;
+
+    TokenizerModel(const nlohmann::json &model) {
         // model is the metadata as a JSON object
         size   = model["vocab"].size(); // size of the vocab
         map    = model["vocab"];        // vocab is a mapping between f(V*) : token -> id
@@ -82,27 +89,28 @@ struct Vocabulary {
     }
 };
 
-struct TokenizerModel {
+struct Tokenizer {
+    // tokenizer model type: only supported implementation will be BPE
+    std::string    type;
+    // the huggingface tokenizers compatible model metadata
+    TokenizerModel model;
 
-    std::string type;
-
-    // Encapsulate the vocabulary and related items together
-    Vocabulary vocab;
+    // Need to know these advance. Must be set on a model-by-model basis as a result.
+    struct MetaToken* bos_token = nullptr;
+    struct MetaToken* eos_token = nullptr;
+    struct MetaToken* unk_token = nullptr;
 
     size_t size() {
-        return vocab.size;
+        return model.size;
     };
 
     size_t token_to_id(const std::string &token) {
-        return vocab.map[token];
+        return model.map[token];
     };
 
     std::string id_to_token(size_t encoding) const {
-        return vocab.tokens[encoding];
+        return model.tokens[encoding];
     };
-
-    bool fuse_unk      = false;
-    bool byte_fallback = false;
 
     // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
     nlohmann::json normalizer;
