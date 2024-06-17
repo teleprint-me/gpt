@@ -54,61 +54,75 @@ struct PreTokenizer {
 };
 
 struct TokenizerModel {
+  private:
+    // model is the metadata as a JSON object
+    nlohmann::json           __model__; // guard against name conflicts
+    std::vector<std::string> __reverse_vocab__;
+
   public:
-    size_t                        size;
-    std::map<std::string, size_t> vocab;
-    std::vector<std::string>      tokens;
+    TokenizerModel(const nlohmann::json &model) {
+        __model__ = model;
+
+        // map vocab to vector elements
+        for (auto &[token, id] : __model__["vocab"].items()) {
+            __reverse_vocab__[id] = token;
+        }
+    }
+
+    size_t size() {
+        return __model__["vocab"].size();
+    };
+
+    std::map<std::string, size_t> vocab() {
+        return __model__["vocab"]; // vocab is the result of V* : t -> id
+    };
+
+    std::vector<std::string> tokens() const {
+        return __reverse_vocab__; // vocab is the result of V* : id -> t
+    };
 
     std::vector<struct MetaToken*> added_tokens;
 
-    std::vector<std::string> merges;
+    std::vector<std::string> merges() {
+        return __model__["merges"]; // merges is a vector of strings
+    };
 
-    std::string type;
-    std::string unk_token;
+    std::string type() {
+        return __model__.contains("type") ? __model__["type"] : "BPE";
+    };
+
+    std::string unk_token() {
+        return __model__.contains("unk_token") ? __model__["unk_token"] : "";
+    };
 
     // note: may be null or string
-    std::string continuing_subword_prefix;
-    std::string end_of_word_suffix;
+    std::string continuing_subword_prefix() {
+        return __model__.contains("continuing_subword_prefix")
+                   ? __model__["continuing_subword_prefix"]
+                   : "";
+    };
 
-    float dropout = 0.0f; // guard against compiler
+    std::string end_of_word_suffix() {
+        return __model__.contains("end_of_word_suffix") ? __model__["end_of_word_suffix"] : "";
+    };
 
-    bool fuse_unk      = false;
-    bool byte_fallback = false;
-    bool ignore_merges = false;
+    float dropout() {
+        return __model__.contains("dropout") ? __model__["dropout"].template get<float>() : 0.0f;
+    };
 
-    TokenizerModel(const nlohmann::json &model) {
-        type = model.contains("type") ? model["type"] : "BPE";
+    bool fuse_unk() {
+        return __model__.contains("fuse_unk") ? __model__["fuse_unk"].template get<bool>() : false;
+    };
 
-        // model is the metadata as a JSON object
-        size   = model["vocab"].size(); // size of the vocab
-        vocab  = model["vocab"];        // vocab is the result of V* : t -> id
-        merges = model["merges"];       // merges is a vector of strings
+    bool byte_fallback() {
+        return __model__.contains("byte_fallback") ? __model__["byte_fallback"].template get<bool>()
+                                                   : false;
+    };
 
-        // map vocab to vector elements
-        for (auto &[token, id] : model["vocab"].items()) {
-            tokens[id] = token;
-        }
-
-        merges = model["merges"];
-
-        continuing_subword_prefix
-            = model.contains("continuing_subword_prefix") ? model["continuing_subword_prefix"] : "";
-
-        end_of_word_suffix
-            = model.contains("end_of_word_suffix") ? model["end_of_word_suffix"] : "";
-
-        dropout = model.contains("dropout") ? model["dropout"].template get<float>() : 0.0f;
-
-        fuse_unk = model.contains("fuse_unk") ? model["fuse_unk"].template get<bool>() : false;
-
-        byte_fallback
-            = model.contains("byte_fallback") ? model["byte_fallback"].template get<bool>() : false;
-
-        ignore_merges
-            = model.contains("ignore_merges") ? model["ignore_merges"].template get<bool>() : false;
-
-        unk_token = model.contains("unk_token") ? model["unk_token"] : "";
-    }
+    bool ignore_merges() {
+        return __model__.contains("ignore_merges") ? __model__["ignore_merges"].template get<bool>()
+                                                   : false;
+    };
 };
 
 struct Tokenizer {
@@ -123,15 +137,15 @@ struct Tokenizer {
     struct MetaToken* unk_token = nullptr;
 
     size_t size() {
-        return model.size;
+        return model.size();
     };
 
     size_t token_to_id(const std::string &token) {
-        return model.vocab[token];
+        return model.vocab()[token];
     };
 
     std::string id_to_token(size_t encoding) const {
-        return model.tokens[encoding];
+        return model.tokens()[encoding];
     };
 
     // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
