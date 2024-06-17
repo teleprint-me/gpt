@@ -13,8 +13,8 @@
 #include <vector>
 #include <wait.h>
 
-// NOTE: MetaToken represents an object element found within added_tokens in the tokenizer.json
-struct MetaToken {
+// NOTE: AddedToken represents an object element found within added_tokens in the tokenizer.json
+struct AddedToken {
     // NOTE: These are required to be defined at runtime.
     int         id;
     std::string content;
@@ -81,7 +81,7 @@ struct TokenizerModel {
         return __reverse_vocab__; // vocab is the result of V* : id -> t
     };
 
-    std::vector<struct MetaToken*> added_tokens;
+    std::vector<struct AddedToken*> added_tokens;
 
     std::vector<std::string> merges() {
         return __model__["merges"]; // merges is a vector of strings
@@ -132,9 +132,9 @@ struct Tokenizer {
     TokenizerModel model;
 
     // Need to know these advance. Must be set on a model-by-model basis as a result.
-    struct MetaToken* bos_token = nullptr;
-    struct MetaToken* eos_token = nullptr;
-    struct MetaToken* unk_token = nullptr;
+    struct AddedToken* bos_token = nullptr;
+    struct AddedToken* eos_token = nullptr;
+    struct AddedToken* unk_token = nullptr;
 
     size_t size() {
         return model.size();
@@ -153,34 +153,34 @@ struct Tokenizer {
     nlohmann::json pre_tokenizer;
 };
 
-std::vector<struct MetaToken*> allocate_meta_tokens(nlohmann::json added_tokens) {
+std::vector<struct AddedToken*> allocate_meta_tokens(nlohmann::json added_tokens) {
 
     if (added_tokens.is_null()) {
         throw std::invalid_argument("Expected a valid added_tokens argument, got null instead.");
     }
 
-    std::vector<struct MetaToken*> token_set;
+    std::vector<struct AddedToken*> token_set;
 
     // added_tokens is a JSON list of JSON objects
     for (nlohmann::json object : added_tokens) {
         // technically, we can have these in the stack. tbh, not sure if matters.
-        struct MetaToken* token = (struct MetaToken*) malloc(sizeof(struct MetaToken));
-        token->id               = object["id"];
-        token->content          = object["content"];
-        token->single_word      = object["single_word"];
-        token->lstrip           = object["lstrip"];
-        token->rstrip           = object["rstrip"];
-        token->normalized       = object["normalized"];
-        token->special          = object["special"];
+        struct AddedToken* token = (struct AddedToken*) malloc(sizeof(struct AddedToken));
+        token->id                = object["id"];
+        token->content           = object["content"];
+        token->single_word       = object["single_word"];
+        token->lstrip            = object["lstrip"];
+        token->rstrip            = object["rstrip"];
+        token->normalized        = object["normalized"];
+        token->special           = object["special"];
         token_set.push_back(token);
     }
 
     return token_set;
 }
 
-void deallocate_meta_tokens(std::vector<struct MetaToken*> token_set) {
-    // Deallocate memory for all struct MetaToken objects
-    for (struct MetaToken* token : token_set) {
+void deallocate_meta_tokens(std::vector<struct AddedToken*> token_set) {
+    // Deallocate memory for all struct AddedToken objects
+    for (struct AddedToken* token : token_set) {
         delete token;
     }
 }
