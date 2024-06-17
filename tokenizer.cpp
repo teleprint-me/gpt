@@ -68,15 +68,16 @@ struct TokenizerModel {
     std::string continuing_subword_prefix;
     std::string end_of_word_suffix;
 
-    float dropout;
+    float dropout = 0.0f; // guard against compiler
 
     bool fuse_unk      = false;
     bool byte_fallback = false;
+    bool ignore_merges = false;
 
     TokenizerModel(const nlohmann::json &model) {
         // model is the metadata as a JSON object
         size   = model["vocab"].size(); // size of the vocab
-        map    = model["vocab"];        // vocab is a mapping between f(V*) : token -> id
+        map    = model["vocab"];        // vocab is the result of V* : t -> id
         merges = model["merges"];       // merges is a vector of strings
 
         for (const auto &pair : model["vocab"].items()) {
