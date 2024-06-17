@@ -95,8 +95,6 @@ struct TokenizerModel {
         return __reverse_vocab__; // vocab is the result of V* : id -> t
     };
 
-    std::vector<struct AddedToken*> added_tokens;
-
     std::vector<std::string> merges() {
         return __model__["merges"]; // merges is a vector of strings
     };
@@ -139,11 +137,15 @@ struct TokenizerModel {
     };
 };
 
+// NOTE: This is a public class
 struct Tokenizer {
+  public:
     // tokenizer model type: only supported implementation will be BPE
     std::string    type;
     // the huggingface tokenizers compatible model metadata
     TokenizerModel model;
+
+    std::vector<struct AddedToken*> added_tokens;
 
     // Need to know these advance. Must be set on a model-by-model basis as a result.
     struct AddedToken* bos_token = nullptr;
