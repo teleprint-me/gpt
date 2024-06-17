@@ -167,7 +167,7 @@ struct Tokenizer {
     nlohmann::json pre_tokenizer;
 };
 
-std::vector<struct AddedToken*> allocate_meta_tokens(nlohmann::json added_tokens) {
+std::vector<struct AddedToken*> allocate_added_tokens(nlohmann::json added_tokens) {
 
     if (added_tokens.is_null()) {
         throw std::invalid_argument("Expected a valid added_tokens argument, got null instead.");
@@ -177,22 +177,15 @@ std::vector<struct AddedToken*> allocate_meta_tokens(nlohmann::json added_tokens
 
     // added_tokens is a JSON list of JSON objects
     for (nlohmann::json object : added_tokens) {
+        struct AddedToken* token = new AddedToken(object);
         // technically, we can have these in the stack. tbh, not sure if matters.
-        struct AddedToken* token = (struct AddedToken*) malloc(sizeof(struct AddedToken));
-        token->id                = object["id"];
-        token->content           = object["content"];
-        token->single_word       = object["single_word"];
-        token->lstrip            = object["lstrip"];
-        token->rstrip            = object["rstrip"];
-        token->normalized        = object["normalized"];
-        token->special           = object["special"];
         token_set.push_back(token);
     }
 
     return token_set;
 }
 
-void deallocate_meta_tokens(std::vector<struct AddedToken*> token_set) {
+void deallocate_added_tokens(std::vector<struct AddedToken*> token_set) {
     // Deallocate memory for all struct AddedToken objects
     for (struct AddedToken* token : token_set) {
         delete token;
