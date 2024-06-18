@@ -17,7 +17,11 @@
 
 struct Token* malloc_token(size_t id, std::string content) {
     // allocate memory for the token object
-    struct Token* token = (struct Token*) malloc(sizeof(struct Token));
+    struct Token* token = new Token();
+
+    if (nullptr == token) {
+        throw std::invalid_argument("Failed to allocate memory for token with id and content.");
+    }
 
     // set the token object values
     token->id      = id;
