@@ -1,3 +1,5 @@
+#include "tokenizer.h"
+
 #include <climits>
 #include <cstdarg>
 #include <cstring>
@@ -13,192 +15,60 @@
 #include <vector>
 #include <wait.h>
 
-struct SpecialToken {
-  public:
-    size_t      id;
-    std::string content;
+struct Token* malloc_token(size_t id, std::string content) {
+    // allocate memory for the token object
+    struct Token* token = (struct Token*) malloc(sizeof(struct Token));
 
-    SpecialToken(size_t id, const std::string &content = "<unk>") : id(id), content(content) {}
-};
+    // set the token object values
+    token->id      = id;
+    token->content = content;
 
-// NOTE: AddedToken represents an object element found within added_tokens in the tokenizer.json
-struct AddedToken {
-  private:
-    nlohmann::json __token__;
+    // return the newly constructed token
+    return token;
+}
 
-  public:
-    AddedToken(nlohmann::json token) {
-        __token__ = token;
-
-        id          = token["id"];
-        content     = token["content"];
-        single_word = token["single_word"];
-        lstrip      = token["lstrip"];
-        rstrip      = token["rstrip"];
-        normalized  = token["normalized"];
-        special     = token["special"];
+void free_token(struct Token* token) {
+    // free token if and only if token is not null
+    if (nullptr != token) {
+        free(token);
     }
+}
 
-    size_t      id;      // Unique identifier of the token
-    std::string content; // Content of the token
-
-    bool single_word; // Whether this token is a single word
-    bool lstrip;      // Left strip flag
-    bool rstrip;      // Right strip flag
-    bool normalized;  // Normalized flag
-    bool special;     // Special flag
-};
-
-// TODO/WIP
-struct Normalizer {
-    // there are 10 possible types of normalizers
-    std::string type; // type is always available if normalizer is not null
-
-    // TODO: Handle sequences if type is Sequence
-    std::vector<nlohmann::json> rules;
-
-    // default to false because these member attributes may not be available
-    bool add_prefix_space = false;
-    bool trim_offsets     = false;
-};
-
-// TODO/WIP
-struct PreTokenizer {
-    // there are 9 possible types of pre_tokenizers
-    std::string type; // type is always available if pre_tokenizer is not null
-
-    // TODO: Handle sequences if type is Sequence
-    std::vector<nlohmann::json> rules;
-
-    // default to false because these member attributes may not be available
-    bool add_prefix_space = false;
-    bool trim_offsets     = false;
-};
-
-struct TokenizerModel {
-  private:
-    // model is the metadata as a JSON object
-    nlohmann::json           __model__; // guard against name conflicts
-    std::vector<std::string> __reverse_vocab__;
-
-  public:
-    TokenizerModel(const nlohmann::json &model) {
-        __model__ = model;
-
-        // map vocab to vector elements
-        for (auto &[token, id] : __model__["vocab"].items()) {
-            __reverse_vocab__[id] = token;
-        }
-    }
-
-    size_t size() {
-        return __model__["vocab"].size();
-    };
-
-    std::map<std::string, size_t> vocab() {
-        return __model__["vocab"]; // vocab is the result of V* : t -> id
-    };
-
-    std::vector<std::string> tokens() const {
-        return __reverse_vocab__; // vocab is the result of V* : id -> t
-    };
-
-    std::vector<std::string> merges() {
-        return __model__["merges"]; // merges is a vector of strings
-    };
-
-    std::string type() {
-        return __model__.contains("type") ? __model__["type"] : "BPE";
-    };
-
-    std::string unk_token() {
-        return __model__.contains("unk_token") ? __model__["unk_token"] : "";
-    };
-
-    // note: may be null or string
-    std::string continuing_subword_prefix() {
-        return __model__.contains("continuing_subword_prefix")
-                   ? __model__["continuing_subword_prefix"]
-                   : "";
-    };
-
-    std::string end_of_word_suffix() {
-        return __model__.contains("end_of_word_suffix") ? __model__["end_of_word_suffix"] : "";
-    };
-
-    float dropout() {
-        return __model__.contains("dropout") ? __model__["dropout"].template get<float>() : 0.0f;
-    };
-
-    bool fuse_unk() {
-        return __model__.contains("fuse_unk") ? __model__["fuse_unk"].template get<bool>() : false;
-    };
-
-    bool byte_fallback() {
-        return __model__.contains("byte_fallback") ? __model__["byte_fallback"].template get<bool>()
-                                                   : false;
-    };
-
-    bool ignore_merges() {
-        return __model__.contains("ignore_merges") ? __model__["ignore_merges"].template get<bool>()
-                                                   : false;
-    };
-};
-
-// NOTE: This is a public class
-struct Tokenizer {
-  public:
-    // tokenizer model type: only supported implementation will be BPE
-    std::string    type;
-    // the huggingface tokenizers compatible model metadata
-    TokenizerModel model;
-
-    std::vector<struct AddedToken*> added_tokens;
-
-    // Need to know these advance. Must be set on a model-by-model basis as a result.
-    struct SpecialToken* bos_token = nullptr;
-    struct SpecialToken* eos_token = nullptr;
-    struct SpecialToken* unk_token = nullptr;
-
-    size_t size() {
-        return model.size();
-    };
-
-    size_t token_to_id(const std::string &token) {
-        return model.vocab()[token];
-    };
-
-    std::string id_to_token(size_t encoding) const {
-        return model.tokens()[encoding];
-    };
-
-    // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
-    nlohmann::json normalizer;
-    nlohmann::json pre_tokenizer;
-};
-
-std::vector<struct AddedToken*> allocate_added_tokens(nlohmann::json added_tokens) {
-
+std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens) {
     if (added_tokens.is_null()) {
         throw std::invalid_argument("Expected a valid added_tokens argument, got null instead.");
     }
 
-    std::vector<struct AddedToken*> token_set;
+    std::vector<struct AddedToken*> tokens;
 
     // added_tokens is a JSON list of JSON objects
     for (nlohmann::json object : added_tokens) {
-        struct AddedToken* token = new AddedToken(object);
+        struct AddedToken* added = (struct AddedToken*) malloc(sizeof(struct AddedToken));
+
+        size_t      id      = object["id"].template get<size_t>();
+        std::string content = object["content"].template get<std::string>();
+        added->token        = malloc_token(id, content);
+
+        added->single_word = object["single_word"].template get<bool>();
+        added->left_strip  = object["lstrip"].template get<bool>();
+        added->right_strip = object["rstrip"].template get<bool>();
+        added->normalized  = object["normalized"].template get<bool>();
+        added->special     = object["special"].template get<bool>();
+
         // technically, we can have these in the stack. tbh, not sure if matters.
-        token_set.push_back(token);
+        tokens.push_back(added);
     }
 
-    return token_set;
+    return tokens;
 }
 
-void deallocate_added_tokens(std::vector<struct AddedToken*> token_set) {
+void free_added_tokens(std::vector<struct AddedToken*> added_tokens) {
     // Deallocate memory for all struct AddedToken objects
-    for (struct AddedToken* token : token_set) {
-        delete token;
+    for (struct AddedToken* added : added_tokens) {
+        if (nullptr != added) {
+            free_token(added->token);
+            free(added);
+        }
     }
 }
 
