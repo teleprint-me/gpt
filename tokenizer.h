@@ -10,6 +10,12 @@ struct Token {
     std::string content; // Content of the token
 };
 
+// allocate memory to a token
+struct Token* malloc_token(size_t id, std::string content);
+
+// deallocate memory from a token
+void free_token(struct Token* token);
+
 struct AddedToken {
     struct Token* token = nullptr;
 
@@ -19,6 +25,12 @@ struct AddedToken {
     bool normalized;  // Normalized flag
     bool special;     // Special flag
 };
+
+// allocate memory to a vector of added tokens
+std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens);
+
+// free memory from a vector of a added tokens
+void free_added_tokens(std::vector<struct AddedToken*> added_tokens);
 
 // TODO/WIP
 struct Normalizer {
