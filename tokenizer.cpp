@@ -156,8 +156,8 @@ int main(int argc, char* argv[]) {
     const struct option long_options[]
         = {{"tokenizer-path", required_argument, nullptr, 'p'}, NULL};
 
-    int  opt;
-    char tokenizer_path[1024];
+    int                   opt;
+    std::filesystem::path directory;
 
     while ((opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1) {
         switch (opt) {
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
 
-                strcpy(tokenizer_path, optarg);
+                directory = std::filesystem::path(optarg);
                 break;
 
             default:
@@ -176,13 +176,15 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::filesystem::path directory = std::filesystem::path(tokenizer_path);
+    std::filesystem::path tokenizer_json = directory / "tokenizer.json";
 
-    std::ifstream  f(directory / "tokenizer.json");
+    fprintf(stdout, "using: %s\n", tokenizer_json.c_str());
+
+    std::ifstream  f(tokenizer_json);
     nlohmann::json data = nlohmann::json::parse(f);
 
     if (data.is_null()) {
-        puts("Error: Unable to parse tokenizer.json file.");
+        fprintf(stderr, "Error: Unable to parse tokenizer.json file.\n");
         return 1;
     }
 
@@ -192,7 +194,7 @@ int main(int argc, char* argv[]) {
 
     struct Tokenizer* tokenizer = malloc_tokenizer(data);
 
-    fprintf(stdout, "The tokenizer model type is: %s", tokenizer->type().c_str());
+    fprintf(stdout, "tokenizer->model->type: %s\n", tokenizer->type().c_str());
 
     free_tokenizer(tokenizer);
 
