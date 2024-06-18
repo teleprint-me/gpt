@@ -1,7 +1,3 @@
-# ignore binaries produced by make
-main
-alt
-
 # ignore local paths
 /build
 /local
