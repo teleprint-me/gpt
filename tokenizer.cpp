@@ -1,26 +1,15 @@
 #include "tokenizer.h"
 
-#include <climits>
-#include <cstdarg>
 #include <cstring>
-#include <format>
 #include <fstream>
 #include <getopt.h>
-#include <iostream>
-#include <map>
-#include <nlohmann/json.hpp>
-#include <pthread.h>
-#include <string>
-#include <sys/wait.h>
-#include <vector>
-#include <wait.h>
 
 struct Token* malloc_token(size_t id, std::string content) {
     // allocate memory for the token object
-    struct Token* token = new Token();
+    struct Token* token = (struct Token*) malloc(sizeof(struct Token));
 
     if (nullptr == token) {
-        throw std::invalid_argument("Failed to allocate memory for token with id and content.");
+        throw std::bad_alloc();
     }
 
     // set the token object values
@@ -48,6 +37,10 @@ std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens)
     // added_tokens is a JSON list of JSON objects
     for (nlohmann::json object : added_tokens) {
         struct AddedToken* added = (struct AddedToken*) malloc(sizeof(struct AddedToken));
+
+        if (nullptr == added) {
+            throw std::bad_alloc();
+        }
 
         size_t      id      = object["id"].template get<size_t>();
         std::string content = object["content"].template get<std::string>();
@@ -126,7 +119,9 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string version = data["version"];
-    std::cout << "version: " << version << std::endl;
+
+    fprintf(stdout, "version: %s\n", version.c_str());
+
     const nlohmann::json model_arch = data["truncation"];
     const nlohmann::json padding    = data["padding"];
 
