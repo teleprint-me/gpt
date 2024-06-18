@@ -91,9 +91,6 @@ void free_tokenizer_model(struct TokenizerModel* model);
 
 // NOTE: This is a public class
 struct Tokenizer {
-  public:
-    // tokenizer model type: only supported implementation will be BPE
-    std::string    type;
     // the huggingface tokenizers compatible model metadata
     TokenizerModel model;
 
@@ -103,6 +100,11 @@ struct Tokenizer {
     struct Token* bos_token = nullptr;
     struct Token* eos_token = nullptr;
     struct Token* unk_token = nullptr;
+
+    // tokenizer model type: only supported implementation will be BPE
+    std::string type() {
+        return model.type;
+    };
 
     size_t size() {
         return model.size;
@@ -120,5 +122,9 @@ struct Tokenizer {
     nlohmann::json normalizer;
     nlohmann::json pre_tokenizer;
 };
+
+struct Tokenizer* malloc_tokenizer(nlohmann::json data);
+
+void free_tokenizer(struct TokenizerModel* data);
 
 #endif // TOKENIZER_H

@@ -115,6 +115,22 @@ void free_tokenizer_model(struct TokenizerModel* tokenizer_model) {
     }
 }
 
+struct Tokenizer* malloc_tokenizer(nlohmann::json data) {
+    if (data.is_null()) {
+        throw std::invalid_argument("Expected a valid model argument, got null instead.");
+    }
+
+    struct Tokenizer* tokenizer = (struct Tokenizer*) malloc(sizeof(struct Tokenizer));
+
+    if (nullptr == tokenizer) {
+        throw std::bad_alloc();
+    }
+
+    tokenizer->added_tokens = malloc_added_tokens(data["added_tokens"]);
+
+    return tokenizer;
+}
+
 int main(int argc, char* argv[]) {
     if (1 == argc) {
         puts("Usage: vocab [-f <file>] [-v <vocab-type>]");
