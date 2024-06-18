@@ -69,6 +69,52 @@ void free_added_tokens(std::vector<struct AddedToken*> added_tokens) {
     }
 }
 
+struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model) {
+    if (model.is_null()) {
+        throw std::invalid_argument("Expected a valid model argument, got null instead.");
+    }
+
+    struct TokenizerModel* tokenizer
+        = (struct TokenizerModel*) malloc(sizeof(struct TokenizerModel));
+
+    if (nullptr == tokenizer) {
+        throw std::bad_alloc();
+    }
+
+    // NOTE: This is not always available
+    tokenizer->type = model.contains("type") ? model["type"] : "BPE";
+
+    // V* ≅ [N_V] where V* is set of tokens and N_V is the vocab size
+    // e.g. The set of tokens is congruent with the vocab size
+    tokenizer->size  = model["vocab"].size();
+    // V* : t -> i where V* is set of tokens, t is token, and i is id
+    // e.g. this is a "forward mapping"
+    tokenizer->vocab = model["vocab"];
+    // V*: i -> t where V* is set of tokens, i is id, and t is token
+    // e.g. this is a "reverse mapping"
+    for (auto &[token, id] : model["vocab"].items()) {
+        tokenizer->tokens[id] = token;
+    }
+
+    tokenizer->byte_fallback
+        = model.contains("byte_fallback") ? model["byte_fallback"].template get<bool>() : false;
+
+    // merges is a vector of strings
+    tokenizer->merges = model["merges"];
+    tokenizer->ignore_merges
+        = model.contains("ignore_merges") ? model["ignore_merges"].template get<bool>() : false;
+
+    tokenizer->dropout = model.contains("dropout") ? model["dropout"].template get<float>() : 0.0f;
+
+    return tokenizer;
+}
+
+void free_tokenizer_model(struct TokenizerModel* tokenizer_model) {
+    if (nullptr != tokenizer_model) {
+        free(tokenizer_model);
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (1 == argc) {
         puts("Usage: vocab [-f <file>] [-v <vocab-type>]");

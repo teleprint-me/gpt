@@ -59,74 +59,35 @@ struct PreTokenizer {
 };
 
 struct TokenizerModel {
-  private:
-    // model is the metadata as a JSON object
-    nlohmann::json           __model__; // guard against name conflicts
-    std::vector<std::string> __reverse_vocab__;
+    // BPE, WPM, etc...
+    std::string type;
 
-  public:
-    TokenizerModel(const nlohmann::json &model) {
-        __model__ = model;
+    // V* ≅ [N_V] where V* is set of tokens and N_V is the vocab size
+    // e.g. The set of tokens is congruent with the vocab size
+    size_t size;
 
-        // map vocab to vector elements
-        for (auto &[token, id] : __model__["vocab"].items()) {
-            __reverse_vocab__[id] = token;
-        }
-    }
+    // V* : t -> i where V* is set of tokens, t is token, and i is id
+    // e.g. this is a "forward mapping"
+    std::map<std::string, size_t> vocab;
 
-    size_t size() {
-        return __model__["vocab"].size();
-    };
+    // V*: i -> t where V* is set of tokens, i is id, and t is token
+    // e.g. this is a "reverse mapping"
+    std::vector<std::string> tokens;
 
-    std::map<std::string, size_t> vocab() {
-        return __model__["vocab"]; // vocab is the result of V* : t -> id
-    };
+    // The array of merged tokens as strings.
+    // NOTE: These should be split before use
+    // with start and end indices included, respectively.
+    std::vector<std::string> merges;
 
-    std::vector<std::string> tokens() const {
-        return __reverse_vocab__; // vocab is the result of V* : id -> t
-    };
+    bool byte_fallback;
+    bool ignore_merges;
 
-    std::vector<std::string> merges() {
-        return __model__["merges"]; // merges is a vector of strings
-    };
-
-    std::string type() {
-        return __model__.contains("type") ? __model__["type"] : "BPE";
-    };
-
-    std::string unk_token() {
-        return __model__.contains("unk_token") ? __model__["unk_token"] : "";
-    };
-
-    // note: may be null or string
-    std::string continuing_subword_prefix() {
-        return __model__.contains("continuing_subword_prefix")
-                   ? __model__["continuing_subword_prefix"]
-                   : "";
-    };
-
-    std::string end_of_word_suffix() {
-        return __model__.contains("end_of_word_suffix") ? __model__["end_of_word_suffix"] : "";
-    };
-
-    float dropout() {
-        return __model__.contains("dropout") ? __model__["dropout"].template get<float>() : 0.0f;
-    };
-
-    bool fuse_unk() {
-        return __model__.contains("fuse_unk") ? __model__["fuse_unk"].template get<bool>() : false;
-    };
-
-    bool byte_fallback() {
-        return __model__.contains("byte_fallback") ? __model__["byte_fallback"].template get<bool>()
-                                                   : false;
-    };
-
-    bool ignore_merges() {
-        return __model__.contains("ignore_merges") ? __model__["ignore_merges"].template get<bool>()
-                                                   : false;
-    };
+    float dropout;
 };
+
+struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model);
+
+void free_tokenizer_model(struct TokenizerModel* model);
 
 // NOTE: This is a public class
 struct Tokenizer {
@@ -139,20 +100,20 @@ struct Tokenizer {
     std::vector<struct AddedToken*> added_tokens;
 
     // Need to know these advance. Must be set on a model-by-model basis as a result.
-    struct SpecialToken* bos_token = nullptr;
-    struct SpecialToken* eos_token = nullptr;
-    struct SpecialToken* unk_token = nullptr;
+    struct Token* bos_token = nullptr;
+    struct Token* eos_token = nullptr;
+    struct Token* unk_token = nullptr;
 
     size_t size() {
-        return model.size();
+        return model.size;
     };
 
     size_t token_to_id(const std::string &token) {
-        return model.vocab()[token];
+        return model.vocab[token];
     };
 
     std::string id_to_token(size_t encoding) const {
-        return model.tokens()[encoding];
+        return model.tokens[encoding];
     };
 
     // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
