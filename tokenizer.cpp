@@ -126,9 +126,23 @@ struct Tokenizer* malloc_tokenizer(nlohmann::json data) {
         throw std::bad_alloc();
     }
 
+    tokenizer->model        = malloc_tokenizer_model(data["model"]);
     tokenizer->added_tokens = malloc_added_tokens(data["added_tokens"]);
 
+    // TODO/WIP: Note that normalize and pre_tokenizer are variable objects.
+    // using nlohmann::json data types to ensure sane defaults for now.
+    tokenizer->normalizer    = data["normalizer"];
+    tokenizer->pre_tokenizer = data["pre_tokenizer"];
+
     return tokenizer;
+}
+
+void free_tokenizer(struct Tokenizer* data) {
+    if (nullptr != data) {
+        free_tokenizer_model(data->model);
+        free_added_tokens(data->added_tokens);
+        free(data);
+    }
 }
 
 int main(int argc, char* argv[]) {

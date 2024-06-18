@@ -92,8 +92,12 @@ void free_tokenizer_model(struct TokenizerModel* model);
 // NOTE: This is a public class
 struct Tokenizer {
     // the huggingface tokenizers compatible model metadata
-    TokenizerModel model;
+    struct TokenizerModel* model;
 
+    // added_tokens can be thought of as extras
+    // as they aren't always used or available.
+    // note that added_tokens are typically special
+    // tokens when they are available.
     std::vector<struct AddedToken*> added_tokens;
 
     // Need to know these advance. Must be set on a model-by-model basis as a result.
@@ -103,19 +107,19 @@ struct Tokenizer {
 
     // tokenizer model type: only supported implementation will be BPE
     std::string type() {
-        return model.type;
+        return model->type;
     };
 
     size_t size() {
-        return model.size;
+        return model->size;
     };
 
     size_t token_to_id(const std::string &token) {
-        return model.vocab[token];
+        return model->vocab[token];
     };
 
     std::string id_to_token(size_t encoding) const {
-        return model.tokens[encoding];
+        return model->tokens[encoding];
     };
 
     // TODO/WIP: Note that normalize and pre_tokenizer are variable objects
@@ -125,6 +129,6 @@ struct Tokenizer {
 
 struct Tokenizer* malloc_tokenizer(nlohmann::json data);
 
-void free_tokenizer(struct TokenizerModel* data);
+void free_tokenizer(struct Tokenizer* data);
 
 #endif // TOKENIZER_H
