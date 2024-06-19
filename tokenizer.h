@@ -60,11 +60,11 @@ struct PreTokenizer {
 
 struct TokenizerModel {
     // BPE, WPM, etc...
-    std::string type;
+    std::string type = "BPE"; // we can safely assume BPE if null
 
     // V* ≅ [N_V] where V* is set of tokens and N_V is the vocab size
     // e.g. The set of tokens is congruent with the vocab size
-    size_t size;
+    size_t size; // we can only determine size at runtime
 
     // V* : t -> i where V* is set of tokens, t is token, and i is id
     // e.g. this is a "forward mapping"
@@ -79,10 +79,11 @@ struct TokenizerModel {
     // with start and end indices included, respectively.
     std::vector<std::string> merges;
 
-    bool byte_fallback;
-    bool ignore_merges;
+    // set sane defaults
+    bool byte_fallback = false;
+    bool ignore_merges = false;
 
-    float dropout;
+    float dropout = 0.0f;
 };
 
 struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model);

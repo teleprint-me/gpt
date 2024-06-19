@@ -10,6 +10,7 @@ struct Token* malloc_token(size_t id, std::string content) {
     struct Token* token = (struct Token*) malloc(sizeof(struct Token));
 
     if (nullptr == token) {
+        puts("token");
         throw std::bad_alloc();
     }
 
@@ -40,6 +41,7 @@ std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens)
         struct AddedToken* added = (struct AddedToken*) malloc(sizeof(struct AddedToken));
 
         if (nullptr == added) {
+            puts("added tokens");
             throw std::bad_alloc();
         }
 
@@ -70,43 +72,81 @@ void free_added_tokens(std::vector<struct AddedToken*> added_tokens) {
     }
 }
 
+// note: what a fucking nightmare! the variable state of a tokenizer.json makes this challenging.
+// will need to dig deeper into huggingface/tokenizers source code to figure out an optimal path
+// forward.
 struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model) {
     if (model.is_null()) {
         throw std::invalid_argument("Expected a valid model argument, got null instead.");
     }
 
-    struct TokenizerModel* tokenizer
-        = (struct TokenizerModel*) malloc(sizeof(struct TokenizerModel));
+    struct TokenizerModel* tokenizer = new TokenizerModel{};
 
     if (nullptr == tokenizer) {
         throw std::bad_alloc();
     }
 
     // NOTE: This is not always available
-    tokenizer->type = model.contains("type") ? model["type"] : "BPE";
+    fprintf(stderr, "model has type: %d\n", model.contains("vocab"));
+    fprintf(stderr, "model type is string: %d\n", model.is_string());
+    if (model.contains("type")) {
+        tokenizer->type = model["type"].is_null() ? "BPE" : model["type"];
+    }
+    fprintf(stderr, "set type: %s\n", tokenizer->type.c_str());
 
     // V* ≅ [N_V] where V* is set of tokens and N_V is the vocab size
     // e.g. The set of tokens is congruent with the vocab size
-    tokenizer->size  = model["vocab"].size();
+    fprintf(stderr, "model has vocab: %d\n", model.contains("vocab"));
+    fprintf(stderr, "model vocab is object: %d\n", model.is_object());
+    tokenizer->size = model["vocab"].size();
+    fprintf(stderr, "set size: %zd\n", tokenizer->size);
+
     // V* : t -> i where V* is set of tokens, t is token, and i is id
     // e.g. this is a "forward mapping"
-    tokenizer->vocab = model["vocab"];
+    tokenizer->vocab = model["vocab"]; // if vocab is missing, something is wrong.
+    fprintf(stderr, "set vocab\n");    // too large to print
+
+    // map is unordered, but we need an ordered vector of tokens
+    // so we reserve an allocated amount based on the number of tokens
+    // this spares us the hassle of applying std::ordered_map to nlohmann::json::object
+    // std::vector.reserve allocates space, but the vector is still empty.
+    // std::vector.resize will zero-fill the vector.
+    // honestly, both outcomes are undesirable, so I'd rather deal with an empty vector
+    // than a zero-filled vector. we populate it immediately afterwards regardless.
+    tokenizer->tokens.reserve(tokenizer->size);
+
     // V*: i -> t where V* is set of tokens, i is id, and t is token
     // e.g. this is a "reverse mapping"
     for (auto &[token, id] : model["vocab"].items()) {
+        // this could be a string of wide characters?
+        std::string t = token; // this is still producing mojibaked tokens
+        size_t      i = id.get<size_t>();
+        fprintf(stderr, "token: %s, id: %d\n", t, i); // temp to view the issue with tokens
         tokenizer->tokens[id] = token;
     }
+    fprintf(stderr, "\nset tokens\n"); // too large to print
 
     tokenizer->byte_fallback
-        = model.contains("byte_fallback") ? model["byte_fallback"].template get<bool>() : false;
+        = model.contains("byte_fallback") ? model["byte_fallback"].get<bool>() : false;
+    fprintf(stderr, "byte fallback: %d\n", tokenizer->byte_fallback);
 
     // merges is a vector of strings
-    tokenizer->merges = model["merges"];
-    tokenizer->ignore_merges
-        = model.contains("ignore_merges") ? model["ignore_merges"].template get<bool>() : false;
+    tokenizer->merges.reserve(model["merges"].size());
+    tokenizer->merges = model["merges"]; // if merges is missing, something is wrong.
+    fprintf(stderr, "set merges\n");     // too large to print
 
-    tokenizer->dropout = model.contains("dropout") ? model["dropout"].template get<float>() : 0.0f;
+    if (model.contains("ignore_merges")) {
+        tokenizer->ignore_merges
+            = model["ignore_merges"].is_null() ? false : model["ignore_merges"].get<bool>();
+    }
+    fprintf(stderr, "ignore merges: %d\n", tokenizer->ignore_merges);
 
+    if (model.contains("dropout")) {
+        tokenizer->dropout = model["dropout"].is_null() ? 0.0f : model["dropout"].get<float>();
+    }
+    fprintf(stderr, "dropout: %f\n", tokenizer->dropout);
+
+    fprintf(stderr, "created tokenizer <3\n");
     return tokenizer;
 }
 
@@ -124,6 +164,7 @@ struct Tokenizer* malloc_tokenizer(nlohmann::json data) {
     struct Tokenizer* tokenizer = (struct Tokenizer*) malloc(sizeof(struct Tokenizer));
 
     if (nullptr == tokenizer) {
+        puts("tokenizer");
         throw std::bad_alloc();
     }
 
@@ -189,7 +230,6 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string version = data["version"];
-
     fprintf(stdout, "version: %s\n", version.c_str());
 
     struct Tokenizer* tokenizer = malloc_tokenizer(data);
