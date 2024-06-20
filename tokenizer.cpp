@@ -188,7 +188,7 @@ void free_tokenizer(struct Tokenizer* data) {
 
 int main(int argc, char* argv[]) {
     if (1 == argc) {
-        puts("Usage: vocab [-p <path>]");
+        fprintf(stderr, "Usage: %s [-p <path>]", argv[0]);
         return 1;
     }
 
