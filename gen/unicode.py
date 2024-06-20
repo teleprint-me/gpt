@@ -1,6 +1,8 @@
 """
 Module: gen.unicode
 
+Copyright (c) 2023-2024 The ggml authors
+
 References:
 - Unicode Chapter 3 Unicode Conformance
     - https://www.unicode.org/versions/Unicode15.0.0/ch03.pdf
@@ -8,6 +10,10 @@ References:
     - https://perldoc.perl.org/perluniprops
 - Ctypes
     - https://docs.python.org/3/library/ctypes.html
+- Data Parsing
+    - https://www.unicode.org/L2/L1999/UnicodeData.html
+- Data Raw
+    - https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt
 """
 
 import argparse
