@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <getopt.h>
+#include <stdexcept>
 
 struct Token* malloc_token(size_t id, std::string content) {
     // allocate memory for the token object
@@ -82,67 +83,66 @@ struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model) {
 
     struct TokenizerModel* tokenizer = new TokenizerModel{};
 
-    if (nullptr == tokenizer) {
+    if (!tokenizer) {
         throw std::bad_alloc();
     }
 
-    // NOTE: This is not always available
-    fprintf(stderr, "model has type: %d\n", model.contains("vocab"));
-    fprintf(stderr, "model type is string: %d\n", model.is_string());
-    if (model.contains("type")) {
-        tokenizer->type = model["type"].is_null() ? "BPE" : model["type"];
+    // NOTE: model["type"] is not always available, so tokenizer->type will default to BPE if
+    // unavailable. The value may be present and null, so we ignore this edge case.
+    if (model.contains("type") && !model["type"].is_null()) {
+        tokenizer->type = model["type"];
     }
     fprintf(stderr, "set type: %s\n", tokenizer->type.c_str());
 
     // V* ≅ [N_V] where V* is set of tokens and N_V is the vocab size
     // e.g. The set of tokens is congruent with the vocab size
-    fprintf(stderr, "model has vocab: %d\n", model.contains("vocab"));
-    fprintf(stderr, "model vocab is object: %d\n", model.is_object());
+    if (!model.contains("vocab")) { // if vocab is missing, something is wrong.
+        throw std::runtime_error("Missing key: tokenizer['model'] must contain a 'vocab' key.");
+    }
     tokenizer->size = model["vocab"].size();
     fprintf(stderr, "set size: %zd\n", tokenizer->size);
 
     // V* : t -> i where V* is set of tokens, t is token, and i is id
     // e.g. this is a "forward mapping"
-    tokenizer->vocab = model["vocab"]; // if vocab is missing, something is wrong.
-    fprintf(stderr, "set vocab\n");    // too large to print
+    tokenizer->vocab = model["vocab"];
+    fprintf(stderr, "set vocab\n"); // too large to print
 
-    // map is unordered, but we need an ordered vector of tokens
-    // so we reserve an allocated amount based on the number of tokens
-    // this spares us the hassle of applying std::ordered_map to nlohmann::json::object
-    // std::vector.reserve allocates space, but the vector is still empty.
-    // std::vector.resize will zero-fill the vector.
-    // honestly, both outcomes are undesirable, so I'd rather deal with an empty vector
-    // than a zero-filled vector. we populate it immediately afterwards regardless.
+    /* map is unordered, but we need an ordered vector of tokens
+     * so we reserve an allocated amount based on the number of tokens
+     * this spares us the hassle of applying std::ordered_map to nlohmann::json::object
+     */
     tokenizer->tokens.reserve(tokenizer->size);
 
     // V*: i -> t where V* is set of tokens, i is id, and t is token
     // e.g. this is a "reverse mapping"
     for (auto &[token, id] : model["vocab"].items()) {
         // this could be a string of wide characters?
-        std::string t = token; // this is still producing mojibaked tokens
-        size_t      i = id.get<size_t>();
-        fprintf(stderr, "token: %s, id: %d\n", t, i); // temp to view the issue with tokens
-        tokenizer->tokens[id] = token;
+        std::string t                       = token; // this is still producing mojibaked tokens
+        // fprintf(stderr, "token: %s, id: %d\n", t, i); // temp to view the issue with tokens
+        tokenizer->tokens[id.get<size_t>()] = token;
     }
     fprintf(stderr, "\nset tokens\n"); // too large to print
 
-    tokenizer->byte_fallback
-        = model.contains("byte_fallback") ? model["byte_fallback"].get<bool>() : false;
-    fprintf(stderr, "byte fallback: %d\n", tokenizer->byte_fallback);
-
     // merges is a vector of strings
+    if (!model.contains("merges")) {
+        throw std::domain_error("Missing key: tokenizer['model'] must contain a 'merges' key.");
+    }
     tokenizer->merges.reserve(model["merges"].size());
     tokenizer->merges = model["merges"]; // if merges is missing, something is wrong.
     fprintf(stderr, "set merges\n");     // too large to print
 
-    if (model.contains("ignore_merges")) {
-        tokenizer->ignore_merges
-            = model["ignore_merges"].is_null() ? false : model["ignore_merges"].get<bool>();
+    if (model.contains("byte_fallback") && !model["byte_fallback"].is_null()) {
+        tokenizer->byte_fallback = model["byte_fallback"].get<bool>();
+    }
+    fprintf(stderr, "byte fallback: %d\n", tokenizer->byte_fallback);
+
+    if (model.contains("ignore_merges") && !model["ignore_merges"].is_null()) {
+        tokenizer->ignore_merges = model["ignore_merges"].get<bool>();
     }
     fprintf(stderr, "ignore merges: %d\n", tokenizer->ignore_merges);
 
-    if (model.contains("dropout")) {
-        tokenizer->dropout = model["dropout"].is_null() ? 0.0f : model["dropout"].get<float>();
+    if (model.contains("dropout") && !model["dropout"].is_null()) {
+        tokenizer->dropout = model["dropout"].get<float>();
     }
     fprintf(stderr, "dropout: %f\n", tokenizer->dropout);
 
