@@ -14,6 +14,8 @@ References:
     - https://www.unicode.org/L2/L1999/UnicodeData.html
 - Data Raw
     - https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt
+- Unicode Algorithm
+    - https://www.unicode.org/reports/tr9/
 """
 
 import argparse
