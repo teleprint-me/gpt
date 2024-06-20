@@ -10,8 +10,7 @@ struct Token* malloc_token(size_t id, std::string content) {
     // allocate memory for the token object
     struct Token* token = new Token{};
 
-    if (nullptr == token) {
-        puts("token");
+    if (!token) {
         throw std::bad_alloc();
     }
 
@@ -42,20 +41,19 @@ std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens)
     for (nlohmann::json object : added_tokens) {
         struct AddedToken* added = new AddedToken{};
 
-        if (nullptr == added) {
-            puts("added tokens");
+        if (!added) {
             throw std::bad_alloc();
         }
 
-        size_t      id      = object["id"].template get<size_t>();
-        std::string content = object["content"].template get<std::string>();
+        size_t      id      = object["id"].get<size_t>();
+        std::string content = object["content"].get<std::string>();
         added->token        = malloc_token(id, content);
 
-        added->single_word = object["single_word"].template get<bool>();
-        added->left_strip  = object["lstrip"].template get<bool>();
-        added->right_strip = object["rstrip"].template get<bool>();
-        added->normalized  = object["normalized"].template get<bool>();
-        added->special     = object["special"].template get<bool>();
+        added->single_word = object["single_word"].get<bool>();
+        added->left_strip  = object["lstrip"].get<bool>();
+        added->right_strip = object["rstrip"].get<bool>();
+        added->normalized  = object["normalized"].get<bool>();
+        added->special     = object["special"].get<bool>();
 
         // technically, we can have these in the stack. tbh, not sure if matters.
         tokens.push_back(added);
@@ -165,8 +163,7 @@ struct Tokenizer* malloc_tokenizer(nlohmann::json data) {
 
     struct Tokenizer* tokenizer = new Tokenizer{};
 
-    if (nullptr == tokenizer) {
-        puts("tokenizer");
+    if (!tokenizer) {
         throw std::bad_alloc();
     }
 
