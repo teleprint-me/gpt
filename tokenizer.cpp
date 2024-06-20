@@ -116,8 +116,8 @@ struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model) {
     // V*: i -> t where V* is set of tokens, i is id, and t is token
     // e.g. this is a "reverse mapping"
     for (auto &[token, id] : model["vocab"].items()) {
-        // this could be a string of wide characters?
         // todo: token rendering needs to be fixed.
+        // note: expected utf-8, but most likely got utf-16. need to investigate further.
         std::string t                       = token; // this is still producing mojibaked tokens
         // fprintf(stderr, "token: %s, id: %d\n", t, i); // temp to view the issue with tokens
         tokenizer->tokens[id.get<size_t>()] = token;
