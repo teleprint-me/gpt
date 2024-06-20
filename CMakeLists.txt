@@ -8,5 +8,5 @@ if (NOT CMAKE_BUILD_TYPE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
 endif()
 
-add_executable(tokenizer tokenizer.cpp)
+add_executable(tokenizer unicode-data.cpp unicode.cpp tokenizer.cpp)
 add_executable(model model.cpp)
