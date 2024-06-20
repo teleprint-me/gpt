@@ -8,7 +8,7 @@
 
 struct Token* malloc_token(size_t id, std::string content) {
     // allocate memory for the token object
-    struct Token* token = (struct Token*) malloc(sizeof(struct Token));
+    struct Token* token = new Token{};
 
     if (nullptr == token) {
         puts("token");
@@ -25,7 +25,7 @@ struct Token* malloc_token(size_t id, std::string content) {
 
 void free_token(struct Token* token) {
     // free token if and only if token is not null
-    if (nullptr != token) {
+    if (token) {
         free(token);
     }
 }
@@ -35,11 +35,12 @@ std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens)
         throw std::invalid_argument("Expected a valid added_tokens argument, got null instead.");
     }
 
-    std::vector<struct AddedToken*> tokens;
+    std::vector<struct AddedToken*>(tokens);
+    tokens.reserve(added_tokens.size()); // allocate space for added tokens
 
     // added_tokens is a JSON list of JSON objects
     for (nlohmann::json object : added_tokens) {
-        struct AddedToken* added = (struct AddedToken*) malloc(sizeof(struct AddedToken));
+        struct AddedToken* added = new AddedToken{};
 
         if (nullptr == added) {
             puts("added tokens");
@@ -66,7 +67,7 @@ std::vector<struct AddedToken*> malloc_added_tokens(nlohmann::json added_tokens)
 void free_added_tokens(std::vector<struct AddedToken*> added_tokens) {
     // Deallocate memory for all struct AddedToken objects
     for (struct AddedToken* added : added_tokens) {
-        if (nullptr != added) {
+        if (added) {
             free_token(added->token);
             free(added);
         }
@@ -122,7 +123,7 @@ struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model) {
         // fprintf(stderr, "token: %s, id: %d\n", t, i); // temp to view the issue with tokens
         tokenizer->tokens[id.get<size_t>()] = token;
     }
-    fprintf(stderr, "\nset tokens\n"); // too large to print
+    fprintf(stderr, "set tokens\n"); // too large to print
 
     // merges is a vector of strings
     if (!model.contains("merges")) {
@@ -152,7 +153,7 @@ struct TokenizerModel* malloc_tokenizer_model(nlohmann::json model) {
 }
 
 void free_tokenizer_model(struct TokenizerModel* tokenizer_model) {
-    if (nullptr != tokenizer_model) {
+    if (tokenizer_model) {
         free(tokenizer_model);
     }
 }
@@ -162,7 +163,7 @@ struct Tokenizer* malloc_tokenizer(nlohmann::json data) {
         throw std::invalid_argument("Expected a valid model argument, got null instead.");
     }
 
-    struct Tokenizer* tokenizer = (struct Tokenizer*) malloc(sizeof(struct Tokenizer));
+    struct Tokenizer* tokenizer = new Tokenizer{};
 
     if (nullptr == tokenizer) {
         puts("tokenizer");
