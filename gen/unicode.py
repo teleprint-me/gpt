@@ -23,49 +23,149 @@ import ctypes
 import dataclasses
 import logging
 import unicodedata
+from typing import Optional
 
 import regex
+import requests
 
 logger = logging.getLogger(__file__)
 
 
-class CodepointFlags(ctypes.Structure):
+@dataclasses.dataclass
+class UnicodeDataLine:
+    # NOTE: Sequence order matters! The order represents the field indicies
+    code: int  # 0 Code value in 4-digit hexadecimal format.
+    name: str  # 1 Character name
+    gen_cat: str  # 2 General Category
+    cononical_cc: int  # 3 Cononical Combining Classes
+    bidirectional_category: str  # 4 Bidirectional category
+    decomposition: object  # 5 Character decomposition mapping
+    decimal_digit: float  # 6 Decimal digit value
+    digit: float  # 7 Digit value
+    numeric: float  # 8 Numeric value
+    mirrored: bool  # 9 Mirrored character flag
+    old_name: str  # 10 Old Unicode name
+    comment: str  # 11 Comment field
+    uppercase: str  # 12 Uppercase mapping
+    lowercase: str  # 13 Lowercase mapping
+    titlecase: str  # 14 Titlecase mapping
+
+
+class UnicodeDataRequest:
+    MAX_CODEPOINTS = 0x110000
+    UNICODE_DATA_URL = "https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt"
+
+    def __init__(self, url: Optional[str] = None, max_codepoints: Optional[int] = None):
+        if max_codepoints is not None:
+            self.MAX_CODEPOINTS = max_codepoints
+        if url is not None:
+            self.UNICODE_DATA_URL = url
+
+    @property
+    def lines(self) -> list[str]:
+        response = requests.get(self.UNICODE_DATA_URL)
+        response.raise_for_status()
+        data = response.content.decode()
+        return data.splitlines()
+
+    def get_codepoints(self) -> list[UnicodeDataLine]:
+        codepoints = []
+        for line in self.lines:
+            fields = line.split(";")
+            assert 15 == len(
+                fields
+            ), f"Unexpected field count of '{len(fields)}' with '{line}'"
+            codepoints.append(UnicodeDataLine(*fields))
+        return codepoints
+
+
+class CODEPOINT_FLAG:
     """
-    Represents Unicode character properties as defined by the Unicode Technical Standard #36 (Unicode 5.2) using Python's ctypes library,
-        providing boolean flags for various categories of characters based on their unicode values and properties.
+    Class representing Unicode codepoint properties as defined in the Unicode Standard Annex #9 (https://www.unicode.org/reports/tr9/)
 
-    This class allows developers to easily check if a given code point belongs to specific character categories such as numbers (\\p{N}),
-        letters (\\p{L}), separators (\\p{Z}), accent marks (\\p{M}), punctuation (\\p{P}), symbols (\\p{S}), and controls (\\p{C}).
+    Attributes:
+        UNDEFINED (int): Flag value for invalid or undefined codepoints
+            (0x0001)
+        NUMBER (int): Flag value for number properties
+            (0x0002)
+        LETTER (int): Flag value for letter properties
+            (0x0004)
+        SEPARATOR (int): Flag value for separator properties
+            (0x0008)
+        MARK (int): Flag value for mark properties
+            (0x0010)
+        PUNCTUATION (int): Flag value for punctuation properties
+            (0x0020)
+        SYMBOL (int): Flag value for symbol properties
+            (0x0040)
+        CONTROL (int): Flag value for control properties
+            (0x0080)
 
-    The `CodepointFlags` class uses a structure defined in the unicode.h header file to store these properties efficiently,
-        making it suitable for high-performance applications that need to process large amounts of text data with Unicode support.
-
-    To use this class, create an instance of CodepointFlags and call its `from_codepoints` method passing a list or iterable containing the code points
-        you want to check, e.g.:
-
-        ```python
-        from tok.gguf import unicode
-
-        flags = unicode.CodepointFlags()
-        flagged_chars = [0x2145, 0x65, 0xFFFD]
-
-        flags.from_codepoints(flagged_chars)
-
-        for codepoint in flagged_chars:
-            print(f"{codepoint}: is_number={flags.is_number(codepoint)}, is_letter={flags.is_letter(codepoint)}")
-        ```
+    NOTE: See definition in unicode.h for implementation.
     """
 
-    _fields_ = [  # see definition in unicode.h
-        ("is_undefined", ctypes.c_uint16, 1),
-        ("is_number", ctypes.c_uint16, 1),  # regex: \p{N}
-        ("is_letter", ctypes.c_uint16, 1),  # regex: \p{L}
-        ("is_separator", ctypes.c_uint16, 1),  # regex: \p{Z}
-        ("is_accent_mark", ctypes.c_uint16, 1),  # regex: \p{M}
-        ("is_punctuation", ctypes.c_uint16, 1),  # regex: \p{P}
-        ("is_symbol", ctypes.c_uint16, 1),  # regex: \p{S}
-        ("is_control", ctypes.c_uint16, 1),  # regex: \p{C}
-    ]
+    UNDEFINED = 0x0001  # invalid
+    NUMBER = 0x0002  # \p{N}
+    LETTER = 0x0004  # \p{L}
+    SEPARATOR = 0x0008  # \p{Z}
+    MARK = 0x0010  # \p{M}
+    PUNCTUATION = 0x0020  # \p{P}
+    SYMBOL = 0x0040  # \p{S}
+    CONTROL = 0x0080  # \p{C}
+
+
+class CODEPOINT_CATEGORY:
+    """
+    Class representing General Category properties as defined in Unicode Standard Annex #9
+    (https://www.unicode.org/reports/tr9/) and other related resources.
+
+    Attributes:
+        FLAG (dict): Mapping of General Category names to corresponding CODEPOINT_FLAG values
+            (e.g., {'Lu': CODEPOINT_FLAG.LETTER, ...})
+
+    Notes:
+        This class is based on the Normative and Informative Categories defined in
+        Unicode Data Files (https://www.unicode.org/Public/UCD/)
+
+    NOTE: General Category: https://www.unicode.org/L2/L1999/UnicodeData.html
+    """
+
+    FLAG = {
+        # Normative Categories
+        "Lu": CODEPOINT_FLAG.LETTER,  # Uppercase Letter
+        "Ll": CODEPOINT_FLAG.LETTER,  # Lowercase Letter
+        "Lt": CODEPOINT_FLAG.LETTER,  # Titlecase Letter
+        "Mn": CODEPOINT_FLAG.MARK,  # Nonspacing Mark
+        "Mc": CODEPOINT_FLAG.MARK,  # Spacing Mark
+        "Me": CODEPOINT_FLAG.MARK,  # Enclosing Mark
+        "Nd": CODEPOINT_FLAG.NUMBER,  # Decimal Number
+        "Nl": CODEPOINT_FLAG.NUMBER,  # Letter Number
+        "No": CODEPOINT_FLAG.NUMBER,  # Other Number
+        "Zs": CODEPOINT_FLAG.SEPARATOR,  # Space Separator
+        "Zl": CODEPOINT_FLAG.SEPARATOR,  # Line Separator
+        "Zp": CODEPOINT_FLAG.SEPARATOR,  # Paragraph Separator
+        "Cc": CODEPOINT_FLAG.CONTROL,  # Control
+        "Cf": CODEPOINT_FLAG.CONTROL,  # Format
+        "Cs": CODEPOINT_FLAG.CONTROL,  # Surrrogate
+        "Co": CODEPOINT_FLAG.CONTROL,  # Private Use
+        "Cn": CODEPOINT_FLAG.UNDEFINED,  # Undefined
+        # Informative Categories
+        "Lm": CODEPOINT_FLAG.LETTER,  # Modifier Letter
+        "Lo": CODEPOINT_FLAG.LETTER,  # Other Letter
+        "Pc": CODEPOINT_FLAG.PUNCTUATION,  # Connector Punctuation
+        "Pd": CODEPOINT_FLAG.PUNCTUATION,  # Dash Punctuation
+        "Ps": CODEPOINT_FLAG.PUNCTUATION,  # Open Punctuation
+        "Pe": CODEPOINT_FLAG.PUNCTUATION,  # Close Punctuation
+        "Pi": CODEPOINT_FLAG.PUNCTUATION,  # Initial Punctuation
+        "Pf": CODEPOINT_FLAG.PUNCTUATION,  # Final Punctuation
+        "Po": CODEPOINT_FLAG.PUNCTUATION,  # Other Punctuation
+        "Sm": CODEPOINT_FLAG.SYMBOL,  # Math Symbol
+        "Sc": CODEPOINT_FLAG.SYMBOL,  # Currency Symbol
+        "Sk": CODEPOINT_FLAG.SYMBOL,  # Modifier Symbol
+        "So": CODEPOINT_FLAG.SYMBOL,  # Other Symbol
+        # What is this? This is not in the spec.
+        "L&": CODEPOINT_FLAG.LETTER,  # Cased Letter
+    }
 
 
 @dataclasses.dataclass
