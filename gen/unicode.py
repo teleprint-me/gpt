@@ -100,7 +100,8 @@ class Codepoint:
             other (Codepoint): A Codepoint instance representing another character
 
         Returns:
-            bool: True if both instances have matching `lowercase`, `uppercase`, `general_category`, and `bidirectional_category` properties; otherwise False.
+            bool: True if both instances have matching `lowercase`, `uppercase`,
+            `general_category`, and `bidirectional_category` properties; otherwise False.
         """
 
         return (0, 0, self.general_category, self.bidirectional_category) == (
