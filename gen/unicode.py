@@ -375,6 +375,12 @@ class UnicodeTable:
     uppercase: list[tuple[int, int]] = dataclasses.field(default_factory=list)
     nfd: list[tuple[int, int]] = dataclasses.field(default_factory=list)
 
+    def sort(self) -> None:
+        self.whitespace.sort()
+        self.lowercase.sort()
+        self.uppercase.sort()
+        self.nfd.sort()
+
 
 @dataclasses.dataclass
 class CodepointRanges:
@@ -407,8 +413,8 @@ class CodepointRanges:
 
         ```python
         for range in ranges.flags:
-            start, end = range
-            print(f"Flagged character range {start} - {end}")
+            first, last = range
+            print(f"Flagged character range {first} - {last}")
 
         # ...
 
@@ -459,7 +465,6 @@ class CodepointProcessor:
         max_codepoints: Optional[int] = None,
         logger: Optional[Logger] = None,
     ):
-        # Set the unicode upper limit
         self._request = UnicodeDataRequest(url, max_codepoints, logger)
 
         if logger is not None:
@@ -498,6 +503,7 @@ class CodepointProcessor:
             self.set_nfd_table(codepoint)
 
         self.set_whitespace_table()
+        self.unicode_table.sort()
         self.group_flag_ranges()
         self.group_nfd_ranges()
 
@@ -515,10 +521,8 @@ class CodepointProcessor:
             self._unicode_table.uppercase.append((codepoint.code, codepoint.uppercase))
 
     def set_nfd_table(self, codepoint: Codepoint):
-        # NFD normalization
-        char = chr(codepoint.code)
-        norm = ord(unicodedata.normalize("NFD", char)[0])
-        if codepoint != norm:
+        norm = ord(unicodedata.normalize("NFD", chr(codepoint.code))[0])
+        if norm != codepoint.code:
             self._unicode_table.nfd.append((codepoint.code, norm))
 
     def set_whitespace_table(self) -> None:
@@ -531,7 +535,7 @@ class CodepointProcessor:
 
     def group_flag_ranges(self):
         # group ranges with same flags
-        self._codepoint_ranges.flags = [(0, self._codepoint_flags[0])]  # start, flags
+        self._codepoint_ranges.flags = [(0, self._codepoint_flags[0])]  # first, flags
         for codepoint, flag in enumerate(self._codepoint_flags):
             if flag != self._codepoint_ranges.flags[-1][1]:
                 self._codepoint_ranges.flags.append((codepoint, flag))
@@ -539,13 +543,13 @@ class CodepointProcessor:
 
     def group_nfd_ranges(self):
         # group ranges with same nfd
-        self._codepoint_ranges.nfd = [(0, 0, 0)]  # start, last, nfd
+        self._codepoint_ranges.nfd = [(0, 0, 0)]  # first, last, nfd
         for codepoint, norm in self._unicode_table.nfd:
-            start = self._codepoint_ranges.nfd[-1][0]
-            if self._codepoint_ranges.nfd[-1] != (start, codepoint - 1, norm):
+            first = self._codepoint_ranges.nfd[-1][0]
+            if self._codepoint_ranges.nfd[-1] != (first, codepoint - 1, norm):
                 self._codepoint_ranges.nfd.append(None)
-                start = codepoint
-            self._codepoint_ranges.nfd[-1] = (start, codepoint, norm)
+                first = codepoint
+            self._codepoint_ranges.nfd[-1] = (first, codepoint, norm)
 
 
 """
@@ -634,14 +638,13 @@ def build_unicode_data_h(max_codepoints: int = 0x110000) -> str:
 # TODO: define helper functions for setting mapping?
 def set_ranges_flags(processor: CodepointProcessor, byte_order: str = "little") -> str:
     unicode_ranges_flags = (
-        "// codepoint, flag // last=next_start-1\n"
+        "// codepoint, flag // last=next_first-1\n"
         "const std::vector<std::pair<uint32_t, uint16_t>> unicode_ranges_flags = {\n"
     )
     logger.debug(unicode_ranges_flags)
 
-    for codepoint, flags in processor.codepoint_ranges.flags:
-        flags = int.from_bytes(bytes(flags), byte_order)
-        line = "{0x%06X, 0x%04X}," % (codepoint, flags)
+    for code, flag in processor.codepoint_ranges.flags:
+        line = "{0x%06X, 0x%04X}," % (code, flag)
         logger.debug(line)
         unicode_ranges_flags += line
 
@@ -655,8 +658,8 @@ def set_unicode_whitespace(processor: CodepointProcessor) -> str:
     unicode_set_whitespace = "const std::unordered_set<uint32_t> unicode_set_whitespace = {\n"
     logger.debug(unicode_set_whitespace)
 
-    for codepoint in processor.unicode_table.whitespace:
-        line = "0x%06X" % codepoint
+    for code in processor.unicode_table.whitespace:
+        line = "0x%06X" % code
         logger.debug(line)
         unicode_set_whitespace += f"{line}, "
 
@@ -671,8 +674,8 @@ def set_unicode_lowercase(processor: CodepointProcessor) -> str:
         "const std::unordered_map<uint32_t, uint32_t> unicode_map_lowercase = {\n"
     )
 
-    for double in processor.unicode_table.lowercase:
-        line = "{0x%06X, 0x%06X}," % double
+    for code, flag in processor.unicode_table.lowercase:
+        line = "{0x%06X, 0x%06X}," % (code, flag)
         logger.debug(line)
         unicode_map_lowercase += line
 
@@ -687,8 +690,8 @@ def set_unicode_uppercase(processor: CodepointProcessor) -> str:
         "const std::unordered_map<uint32_t, uint32_t> unicode_map_uppercase = {\n"
     )
 
-    for tuple in processor.unicode_table.uppercase:
-        line = "{0x%06X, 0x%06X}," % tuple
+    for code, flag in processor.unicode_table.uppercase:
+        line = "{0x%06X, 0x%06X}," % (code, flag)
         logger.debug(line)
         unicode_map_uppercase += line
 
@@ -700,11 +703,11 @@ def set_unicode_uppercase(processor: CodepointProcessor) -> str:
 
 def set_ranges_nfd(processor: CodepointProcessor) -> str:
     unicode_ranges_nfd = (
-        "// start, last, nfd\n" "const std::vector<range_nfd> unicode_ranges_nfd = {\n"
+        "// first, last, nfd\n" "const std::vector<range_nfd> unicode_ranges_nfd = {\n"
     )
 
-    for triple in processor.codepoint_ranges.nfd:
-        line = "{0x%06X, 0x%06X, 0x%06X}," % triple
+    for first, last, nfd in processor.codepoint_ranges.nfd:
+        line = "{0x%06X, 0x%06X, 0x%06X}," % (first, last, nfd)
         logger.debug(line)
         unicode_ranges_nfd += line
 
