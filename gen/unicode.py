@@ -23,6 +23,7 @@ import ctypes
 import dataclasses
 import logging
 import unicodedata
+from logging import Logger
 from typing import Optional
 
 import regex
@@ -33,7 +34,7 @@ logger = logging.getLogger(__file__)
 
 @dataclasses.dataclass
 class UnicodeDataLine:
-    # NOTE: Sequence order matters! The order represents the field indicies
+    # NOTE: Sequence order matters! The order represents the field indices
     code: int  # 0 Code value in 4-digit hexadecimal format.
     name: str  # 1 Character name
     gen_cat: str  # 2 General Category
@@ -55,11 +56,22 @@ class UnicodeDataRequest:
     MAX_CODEPOINTS = 0x110000
     UNICODE_DATA_URL = "https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt"
 
-    def __init__(self, url: Optional[str] = None, max_codepoints: Optional[int] = None):
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        max_codepoints: Optional[int] = None,
+        logger: Optional[Logger] = None,
+    ):
         if max_codepoints is not None:
             self.MAX_CODEPOINTS = max_codepoints
+
         if url is not None:
             self.UNICODE_DATA_URL = url
+
+        if logger is not None:
+            self.logger = logger
+        else:
+            self.logger = Logger(self.__class__.__name__, level=logging.DEBUG)
 
     @property
     def lines(self) -> list[str]:
@@ -71,11 +83,12 @@ class UnicodeDataRequest:
     def get_codepoints(self) -> list[UnicodeDataLine]:
         codepoints = []
         for line in self.lines:
-            fields = line.split(";")
-            assert 15 == len(
-                fields
-            ), f"Unexpected field count of '{len(fields)}' with '{line}'"
-            codepoints.append(UnicodeDataLine(*fields))
+            try:
+                fields = line.split(";")
+                codepoints.append(UnicodeDataLine(*fields))
+            except TypeError as e:
+                self.logger.warn(f"Invalid format for '{line}': {e}")
+                continue
         return codepoints
 
 
