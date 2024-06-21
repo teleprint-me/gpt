@@ -4,20 +4,21 @@ Module: gen.unicode
 Copyright (c) 2023-2024 The ggml authors
 
 References:
-- Unicode Chapter 3 Unicode Conformance
-    - https://www.unicode.org/versions/Unicode15.0.0/ch03.pdf
-- Unicode Chapter 4 Unicode Properties
-    - https://www.unicode.org/versions/Unicode15.0.0/ch04.pdf
-- Properties accessible through \\p{} and \\P{}
-    - https://perldoc.perl.org/perluniprops
-- Ctypes
-    - https://docs.python.org/3/library/ctypes.html
-- Data Parsing
+- Unicode Core Specification
+    - https://www.unicode.org/versions/Unicode15.0.0/
+- Unicode Data File Format
     - https://www.unicode.org/L2/L1999/UnicodeData.html
-- Data Raw
+- Unicode Data Files
     - https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt
+    - https://unicode.org/Public/UNIDATA/SpecialCasing.txt
+    - https://www.unicode.org/Public/UCD/latest/ucd/LineBreak.txt
+    - https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt
 - Unicode Algorithm
     - https://www.unicode.org/reports/tr9/
+- Unicode Character Database
+    - https://www.unicode.org/reports/tr44/
+- Properties accessible through \\p{} and \\P{}
+    - https://perldoc.perl.org/perluniprops
 """
 
 import argparse
@@ -29,7 +30,6 @@ import unicodedata
 from logging import Logger
 from typing import Generator, Optional, Union
 
-import regex
 import requests
 
 logger = logging.getLogger(__file__)
@@ -324,8 +324,6 @@ class CODEPOINT_CATEGORY:
         "Sc": CODEPOINT_FLAG.SYMBOL,  # Currency Symbol
         "Sk": CODEPOINT_FLAG.SYMBOL,  # Modifier Symbol
         "So": CODEPOINT_FLAG.SYMBOL,  # Other Symbol
-        # What is this? This is not in the spec.
-        "L&": CODEPOINT_FLAG.LETTER,  # Cased Letter
     }
 
 
@@ -454,29 +452,32 @@ class CodepointProcessor:
         ```
     """
 
-    def __init__(self, max_codepoints: None | int = 0x110000):
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        max_codepoints: Optional[int] = None,
+        logger: Optional[Logger] = None,
+    ):
         # Set the unicode upper limit
-        self.MAX_CODEPOINTS = max_codepoints
+        self._request = UnicodeDataRequest(url, max_codepoints, logger)
 
-        # Regular expressions for various Unicode character categories
-        self._regexes = {
-            "is_number": regex.compile(r"\p{N}"),
-            "is_letter": regex.compile(r"\p{L}"),
-            "is_separator": regex.compile(r"\p{Z}"),
-            "is_accent_mark": regex.compile(r"\p{M}"),
-            "is_punctuation": regex.compile(r"\p{P}"),
-            "is_symbol": regex.compile(r"\p{S}"),
-            "is_control": regex.compile(r"\p{C}"),
-            "is_whitespace": regex.compile(r"\s"),
-        }
+        if logger is not None:
+            self.logger = logger
+        else:
+            self.logger = Logger(self.__class__.__name__, level=logging.DEBUG)
 
         # Set the unicode components
-        self._codepoint_flags = (CodepointFlags * self.MAX_CODEPOINTS)()
+        initializer = [CODEPOINT_FLAG.UNDEFINED] * self.MAX_CODEPOINTS
+        self._codepoint_flags = array.array("H", initializer)
         self._codepoint_ranges = CodepointRanges()
         self._unicode_table = UnicodeTable()
 
     @property
-    def codepoint_flags(self) -> CodepointFlags:
+    def MAX_CODEPOINTS(self) -> int:
+        return self._request.MAX_CODEPOINTS
+
+    @property
+    def codepoint_flags(self) -> array.ArrayType:
         return self._codepoint_flags
 
     @property
@@ -488,65 +489,56 @@ class CodepointProcessor:
         return self._unicode_table
 
     def process_unicode(self):
-        for codepoint in range(self.MAX_CODEPOINTS):
+        for codepoint in self._request.generate_codepoints():
             # convert codepoint to unicode character
-            char = chr(codepoint)
+            char = chr(codepoint.code)
 
-            # regex categories
-            flags = self._codepoint_flags[codepoint]
-            for flag in dir(flags):
-                if flag.startswith("__"):
-                    continue
-
-                regex = self._regexes.get(flag)
-                if regex is not None:
-                    setattr(flags, flag, bool(regex.match(char)))
-                elif flag == "is_undefined":
-                    setattr(flags, flag, bytes(flags)[0] == 0)
-                    message = f"'flags' is undefined for {codepoint} with {char}"
-                    assert not flags.is_undefined, message
-
-            self.set_whitespace_table(codepoint, char)
+            self.set_codepoint_flag(codepoint)
             self.set_lowercase_table(codepoint, char)
             self.set_uppercase_table(codepoint, char)
             self.set_nfd_table(codepoint, char)
 
-    def set_whitespace_table(self, codepoint: int, char: str):
-        # whitespace
-        regex = self._regexes["is_whitespace"]
-        if bool(regex.match(char)):
-            self._unicode_table.whitespace.append(codepoint)
+        self.set_whitespace_table(codepoint, char)
 
-    def set_lowercase_table(self, codepoint: int, char: str):
-        # lowercase conversion
-        lower = ord(char.lower()[0])
-        if codepoint != lower:
-            self._unicode_table.lowercase.append((codepoint, lower))
+    def set_codepoint_flag(self, codepoint: Codepoint) -> None:
+        # codepoint category flag
+        flag = CODEPOINT_CATEGORY.FLAG[codepoint.general_category]
+        self._codepoint_flags[codepoint.code] = flag
 
-    def set_uppercase_table(self, codepoint: int, char: str):
-        # uppercase conversion
-        upper = ord(char.upper()[0])
-        if codepoint != upper:
-            self._unicode_table.uppercase.append((codepoint, upper))
+    def set_lowercase_table(self, codepoint: Codepoint, char: str) -> None:
+        if codepoint.lowercase:
+            self._unicode_table.lowercase.append((codepoint.code, char))
 
-    def set_nfd_table(self, codepoint: int, char: str):
+    def set_uppercase_table(self, codepoint: Codepoint, char: str) -> None:
+        if codepoint.uppercase:
+            self._unicode_table.uppercase.append((codepoint.code, char))
+
+    def set_nfd_table(self, codepoint: Codepoint, char: str):
         # NFD normalization
         norm = ord(unicodedata.normalize("NFD", char)[0])
         if codepoint != norm:
-            self._unicode_table.nfd.append((codepoint, norm))
+            self._unicode_table.nfd.append((codepoint.code, norm))
+
+    def set_whitespace_table(self, codepoint: Codepoint, char: str):
+        # whitespaces, see "<White_Space>" https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt
+        self._unicode_table.whitespace.extend(range(0x0009, 0x000D + 1))
+        self._unicode_table.whitespace.extend(range(0x2000, 0x200A + 1))
+        self._unicode_table.whitespace.extend(
+            [0x0020, 0x0085, 0x00A0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]
+        )
 
     def group_flag_ranges(self):
         # group ranges with same flags
         self._codepoint_ranges.flags = [(0, self._codepoint_flags[0])]  # start, flags
-        for codepoint, flags in enumerate(self._codepoint_flags):
-            if bytes(flags) != bytes(self._codepoint_ranges.flags[-1][1]):
-                self._codepoint_ranges.flags.append((codepoint, flags))
-        self._codepoint_ranges.flags.append((self.MAX_CODEPOINTS, CodepointFlags()))
+        for codepoint, flag in enumerate(self._codepoint_flags):
+            if flag != self._codepoint_ranges.flags[-1][1]:
+                self._codepoint_ranges.flags.append((codepoint, flag))
+        self._codepoint_ranges.flags.append((self.MAX_CODEPOINTS, 0x0000))
 
     def group_nfd_ranges(self):
         # group ranges with same nfd
         self._codepoint_ranges.nfd = [(0, 0, 0)]  # start, last, nfd
-        for codepoint, norm in self.unicode_table.nfd:
+        for codepoint, norm in self._unicode_table.nfd:
             start = self._codepoint_ranges.nfd[-1][0]
             if self._codepoint_ranges.nfd[-1] != (start, codepoint - 1, norm):
                 self._codepoint_ranges.nfd.append(None)
@@ -744,8 +736,6 @@ def build_unicode_data_cpp(processor: CodepointProcessor) -> str:
 
 
 def main():
-    assert ctypes.sizeof(CodepointFlags) == 2
-
     args = get_arguments()
 
     if args.verbose or not args.output_path:
