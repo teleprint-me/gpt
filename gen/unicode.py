@@ -36,6 +36,15 @@ logger = logging.getLogger(__file__)
 
 @dataclasses.dataclass(frozen=True)
 class CodepointField:
+    """
+    Defines constants representing each field in a single line of the 'UnicodeData.txt'
+    file with their corresponding index numbers (0-indexed). These values can be used to
+    access specific fields when parsing and manipulating codepoints.
+
+    These constants are useful when working with the `Codepoint` class and handling
+    Unicode data in general.
+    """
+
     CODE = 0  # Code value in 4-digit hexadecimal format.
     NAME = 1  # Character name
     GENERAL_CATEGORY = 2  # General Category
@@ -56,8 +65,8 @@ class CodepointField:
 @dataclasses.dataclass
 class Codepoint:
     """
-    Represents a extracted codepoint from the 'UnicodeData.txt' file, containing information about
-    various properties of a specific character or control code point.
+    Represents a extracted codepoint from the 'UnicodeData.txt' file, containing
+    information about various properties of a specific character or control code point.
 
     Field order is significant and corresponds to indices in the original data file.
     """
@@ -79,12 +88,26 @@ class Codepoint:
     titlecase: int  # 14 Titlecase mapping
 
     def is_pair(self, other: "Codepoint") -> bool:
-        """compare the previous (self) object to the current (other) object"""
-        return (0, 0, other.general_category, other.bidirectional_category) == (
-            self.lowercase,
-            self.uppercase,
-            self.general_category,
-            self.bidirectional_category,
+        """
+        Check if a given Codepoint object (`other`) has the same mappings and
+        properties compared to this current Codepoint instance (`self`).
+
+        This method is used in `UnicodeDataRequest` class's `generate_codepoints()`
+        generator function to ensure that pairs of characters (First, Last) are properly
+        generated based on the 'UnicodeData.txt' file format.
+
+        Args:
+            other (Codepoint): A Codepoint instance representing another character
+
+        Returns:
+            bool: True if both instances have matching `lowercase`, `uppercase`, `general_category`, and `bidirectional_category` properties; otherwise False.
+        """
+
+        return (0, 0, self.general_category, self.bidirectional_category) == (
+            other.lowercase,
+            other.uppercase,
+            other.general_category,
+            other.bidirectional_category,
         )
 
     @staticmethod
@@ -104,6 +127,7 @@ class Codepoint:
 
     @classmethod
     def from_fields(cls, fields: list[str]) -> "Codepoint":
+        """Returns a `Codepoint` instance object from a set of fields"""
         return Codepoint(
             code=int(fields[CodepointField.CODE], base=16),
             name=fields[CodepointField.NAME],
@@ -126,6 +150,7 @@ class Codepoint:
 
     @classmethod
     def from_codepoint(cls, code: int, codepoint: "Codepoint") -> "Codepoint":
+        """Returns a `Codepoint` instance object based on the range between First and Last"""
         return Codepoint(
             code=code,
             name=codepoint.name,
@@ -187,7 +212,7 @@ class UnicodeDataRequest:
                 continue
             if previous and codepoint.name.endswith(", Last>"):
                 message = f"Expected Last after receiving First:\nfirst({previous}):\nlast({codepoint})"
-                assert previous.is_pair(codepoint), message
+                assert codepoint.is_pair(previous), message
                 for cpt in range(previous.code, codepoint.code):
                     yield Codepoint.from_codepoint(cpt, codepoint)
                 previous = None
