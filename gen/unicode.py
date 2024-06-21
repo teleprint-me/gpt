@@ -171,6 +171,23 @@ class Codepoint:
 
 
 class UnicodeDataRequest:
+    """
+    A request object that fetches and processes Unicode data from an online repository.
+
+    The requested data is processed as a generator, yielding instances of the Codepoint
+    class representing individual characters or control codes in the Unicode Data Files format.
+
+    Attributes:
+        MAX_CODEPOINTS (int): Maximum number of code points to be fetched and generated
+        UNICODE_DATA_URL (str): URL for fetching Unicode data from the online repository
+        logger (Logger or None): A logger instance used for debugging purposes
+
+    Methods:
+        lines(self) -> list[str]: Returns a list of fetched unicode code points
+        generate_codepoints(self) -> Generator[object, object, Codepoint]:
+            Returns a generator to render code points dynamically
+    """
+
     MAX_CODEPOINTS = 0x110000
     UNICODE_DATA_URL = "https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt"
 
@@ -191,7 +208,6 @@ class UnicodeDataRequest:
         else:
             self.logger = Logger(self.__class__.__name__, level=logging.DEBUG)
 
-    @property
     def lines(self) -> list[str]:
         """return the fetched unicode code points"""
         response = requests.get(self.UNICODE_DATA_URL)
@@ -202,7 +218,7 @@ class UnicodeDataRequest:
     def generate_codepoints(self) -> Generator[object, object, Codepoint]:
         """return a generator to render codepoints dynamically"""
         previous = None
-        for line in self.lines:
+        for line in self.lines():
             fields = line.split(";")
             message = f"line({line}): len({len(fields)}): fields({fields})"
             assert 15 == len(fields), message
