@@ -6,6 +6,8 @@ Copyright (c) 2023-2024 The ggml authors
 References:
 - Unicode Chapter 3 Unicode Conformance
     - https://www.unicode.org/versions/Unicode15.0.0/ch03.pdf
+- Unicode Chapter 4 Unicode Properties
+    - https://www.unicode.org/versions/Unicode15.0.0/ch04.pdf
 - Properties accessible through \\p{} and \\P{}
     - https://perldoc.perl.org/perluniprops
 - Ctypes
@@ -24,7 +26,7 @@ import dataclasses
 import logging
 import unicodedata
 from logging import Logger
-from typing import Optional
+from typing import Generator, Optional, Union
 
 import regex
 import requests
@@ -32,24 +34,115 @@ import requests
 logger = logging.getLogger(__file__)
 
 
+@dataclasses.dataclass(frozen=True)
+class CodepointField:
+    CODE = 0  # Code value in 4-digit hexadecimal format.
+    NAME = 1  # Character name
+    GENERAL_CATEGORY = 2  # General Category
+    CONONICAL_CC = 3  # Cononical Combining Classes
+    BIDIRECTIONAL_CATEGORY = 4  # Bidirectional category
+    DECOMPOSITION = 5  # Character decomposition mapping
+    DECIMAL_DIGIT = 6  # Decimal digit value
+    DIGIT = 7  # Digit value
+    NUMERIC = 8  # Numeric value
+    MIRRORED = 9  # Mirrored character flag
+    OLD_NAME = 10  # Old Unicode name
+    COMMENT = 11  # Comment field
+    UPPERCASE = 12  # Uppercase mapping
+    LOWERCASE = 13  # Lowercase mapping
+    TITLECASE = 14  # Titlecase mapping
+
+
 @dataclasses.dataclass
-class UnicodeDataLine:
-    # NOTE: Sequence order matters! The order represents the field indices
+class Codepoint:
+    """
+    Represents a extracted codepoint from the 'UnicodeData.txt' file, containing information about
+    various properties of a specific character or control code point.
+
+    Field order is significant and corresponds to indices in the original data file.
+    """
+
     code: int  # 0 Code value in 4-digit hexadecimal format.
     name: str  # 1 Character name
-    gen_cat: str  # 2 General Category
+    general_category: str  # 2 General Category
     cononical_cc: int  # 3 Cononical Combining Classes
     bidirectional_category: str  # 4 Bidirectional category
-    decomposition: object  # 5 Character decomposition mapping
-    decimal_digit: float  # 6 Decimal digit value
-    digit: float  # 7 Digit value
-    numeric: float  # 8 Numeric value
+    decomposition: tuple[str, int, ...]  # 5 Character decomposition mapping
+    decimal_digit: int  # 6 Decimal digit value
+    digit: int  # 7 Digit value
+    numeric: str  # 8 Numeric value
     mirrored: bool  # 9 Mirrored character flag
     old_name: str  # 10 Old Unicode name
     comment: str  # 11 Comment field
-    uppercase: str  # 12 Uppercase mapping
-    lowercase: str  # 13 Lowercase mapping
-    titlecase: str  # 14 Titlecase mapping
+    uppercase: int  # 12 Uppercase mapping
+    lowercase: int  # 13 Lowercase mapping
+    titlecase: int  # 14 Titlecase mapping
+
+    def is_pair(self, other: "Codepoint") -> bool:
+        """compare the previous (self) object to the current (other) object"""
+        return (0, 0, other.general_category, other.bidirectional_category) == (
+            self.lowercase,
+            self.uppercase,
+            self.general_category,
+            self.bidirectional_category,
+        )
+
+    @staticmethod
+    def parse_int(field: Union[int, str]) -> int:
+        return int(field if field else "0", base=16)
+
+    @staticmethod
+    def parse_bool(field: str) -> bool:
+        return True if field == "Y" else False
+
+    @staticmethod
+    def parse_decomposition(field: str) -> tuple[str, int, ...]:
+        tokens = field.split(" ")
+        special = [tokens[0]]
+        values = [int(v, base=16) for v in tokens[1:]]
+        return tuple(special + values)
+
+    @classmethod
+    def from_fields(cls, fields: list[str]) -> "Codepoint":
+        return Codepoint(
+            code=int(fields[CodepointField.CODE], base=16),
+            name=fields[CodepointField.NAME],
+            general_category=fields[CodepointField.GENERAL_CATEGORY],
+            cononical_cc=Codepoint.parse_int(fields[CodepointField.CONONICAL_CC]),
+            bidirectional_category=fields[CodepointField.BIDIRECTIONAL_CATEGORY],
+            decomposition=Codepoint.parse_decomposition(
+                fields[CodepointField.DECOMPOSITION]
+            ),
+            decimal_digit=fields[CodepointField.DECIMAL_DIGIT],
+            digit=fields[CodepointField.DIGIT],
+            numeric=fields[CodepointField.NUMERIC],
+            mirrored=Codepoint.parse_bool(fields[CodepointField.MIRRORED]),
+            old_name=fields[CodepointField.OLD_NAME],
+            comment=fields[CodepointField.COMMENT],
+            uppercase=Codepoint.parse_int(fields[CodepointField.UPPERCASE]),
+            lowercase=Codepoint.parse_int(fields[CodepointField.LOWERCASE]),
+            titlecase=Codepoint.parse_int(fields[CodepointField.TITLECASE]),
+        )
+
+    @classmethod
+    def from_codepoint(cls, code: int, codepoint: "Codepoint") -> "Codepoint":
+        return Codepoint(
+            code=code,
+            name=codepoint.name,
+            general_category=codepoint.general_category,
+            cononical_cc=codepoint.cononical_cc,
+            bidirectional_category=codepoint.bidirectional_category,
+            decomposition=codepoint.decomposition,
+            decimal_digit=codepoint.decimal_digit,
+            digit=codepoint.digit,
+            numeric=codepoint.numeric,
+            mirrored=codepoint.mirrored,
+            old_name=codepoint.old_name,
+            comment=codepoint.comment,
+            uppercase=codepoint.uppercase,
+            lowercase=codepoint.lowercase,
+            titlecase=codepoint.titlecase,
+        )
 
 
 class UnicodeDataRequest:
@@ -75,21 +168,31 @@ class UnicodeDataRequest:
 
     @property
     def lines(self) -> list[str]:
+        """return the fetched unicode code points"""
         response = requests.get(self.UNICODE_DATA_URL)
         response.raise_for_status()
         data = response.content.decode()
         return data.splitlines()
 
-    def get_codepoints(self) -> list[UnicodeDataLine]:
-        codepoints = []
+    def generate_codepoints(self) -> Generator[object, object, Codepoint]:
+        """return a generator to render codepoints dynamically"""
+        previous = None
         for line in self.lines:
-            try:
-                fields = line.split(";")
-                codepoints.append(UnicodeDataLine(*fields))
-            except TypeError as e:
-                self.logger.warn(f"Invalid format for '{line}': {e}")
+            fields = line.split(";")
+            message = f"line({line}): len({len(fields)}): fields({fields})"
+            assert 15 == len(fields), message
+            codepoint = Codepoint.from_fields(fields)
+            if codepoint.name.endswith(", First>"):
+                previous = codepoint
                 continue
-        return codepoints
+            if previous and codepoint.name.endswith(", Last>"):
+                message = f"Expected Last after receiving First:\nfirst({previous}):\nlast({codepoint})"
+                assert previous.is_pair(codepoint), message
+                for cpt in range(previous.code, codepoint.code):
+                    yield Codepoint.from_codepoint(cpt, codepoint)
+                previous = None
+                continue
+            yield codepoint
 
 
 class CODEPOINT_FLAG:
