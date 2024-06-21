@@ -4,26 +4,27 @@ Module: gen.unicode
 Copyright (c) 2023-2024 The ggml authors
 
 References:
+- Unicode Algorithm
+    - https://www.unicode.org/reports/tr9/
+- Unicode Normalization Forms
+    - https://www.unicode.org/reports/tr15/
+- Unicode Character Database
+    - https://www.unicode.org/reports/tr44/
 - Unicode Core Specification
     - https://www.unicode.org/versions/Unicode15.0.0/
-- Unicode Data File Format
+- UnicodeData.txt File Format
     - https://www.unicode.org/L2/L1999/UnicodeData.html
 - Unicode Data Files
     - https://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt
     - https://unicode.org/Public/UNIDATA/SpecialCasing.txt
     - https://www.unicode.org/Public/UCD/latest/ucd/LineBreak.txt
     - https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt
-- Unicode Algorithm
-    - https://www.unicode.org/reports/tr9/
-- Unicode Character Database
-    - https://www.unicode.org/reports/tr44/
 - Properties accessible through \\p{} and \\P{}
     - https://perldoc.perl.org/perluniprops
 """
 
 import argparse
 import array
-import ctypes
 import dataclasses
 import logging
 import unicodedata
@@ -491,35 +492,36 @@ class CodepointProcessor:
     def process_unicode(self):
         for codepoint in self._request.generate_codepoints():
             # convert codepoint to unicode character
-            char = chr(codepoint.code)
-
             self.set_codepoint_flag(codepoint)
-            self.set_lowercase_table(codepoint, char)
-            self.set_uppercase_table(codepoint, char)
-            self.set_nfd_table(codepoint, char)
+            self.set_lowercase_table(codepoint)
+            self.set_uppercase_table(codepoint)
+            self.set_nfd_table(codepoint)
 
-        self.set_whitespace_table(codepoint, char)
+        self.set_whitespace_table()
+        self.group_flag_ranges()
+        self.group_nfd_ranges()
 
     def set_codepoint_flag(self, codepoint: Codepoint) -> None:
         # codepoint category flag
         flag = CODEPOINT_CATEGORY.FLAG[codepoint.general_category]
         self._codepoint_flags[codepoint.code] = flag
 
-    def set_lowercase_table(self, codepoint: Codepoint, char: str) -> None:
+    def set_lowercase_table(self, codepoint: Codepoint) -> None:
         if codepoint.lowercase:
-            self._unicode_table.lowercase.append((codepoint.code, char))
+            self._unicode_table.lowercase.append((codepoint.code, codepoint.lowercase))
 
-    def set_uppercase_table(self, codepoint: Codepoint, char: str) -> None:
+    def set_uppercase_table(self, codepoint: Codepoint) -> None:
         if codepoint.uppercase:
-            self._unicode_table.uppercase.append((codepoint.code, char))
+            self._unicode_table.uppercase.append((codepoint.code, codepoint.uppercase))
 
-    def set_nfd_table(self, codepoint: Codepoint, char: str):
+    def set_nfd_table(self, codepoint: Codepoint):
         # NFD normalization
+        char = chr(codepoint.code)
         norm = ord(unicodedata.normalize("NFD", char)[0])
         if codepoint != norm:
             self._unicode_table.nfd.append((codepoint.code, norm))
 
-    def set_whitespace_table(self, codepoint: Codepoint, char: str):
+    def set_whitespace_table(self) -> None:
         # whitespaces, see "<White_Space>" https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt
         self._unicode_table.whitespace.extend(range(0x0009, 0x000D + 1))
         self._unicode_table.whitespace.extend(range(0x2000, 0x200A + 1))
@@ -669,8 +671,8 @@ def set_unicode_lowercase(processor: CodepointProcessor) -> str:
         "const std::unordered_map<uint32_t, uint32_t> unicode_map_lowercase = {\n"
     )
 
-    for tuple in processor.unicode_table.lowercase:
-        line = "{0x%06X, 0x%06X}," % tuple
+    for double in processor.unicode_table.lowercase:
+        line = "{0x%06X, 0x%06X}," % double
         logger.debug(line)
         unicode_map_lowercase += line
 
@@ -743,10 +745,8 @@ def main():
     else:
         logging.basicConfig(level=logging.INFO)
 
-    processor = CodepointProcessor(args.max_codepoints)
+    processor = CodepointProcessor(max_codepoints=args.max_codepoints)
     processor.process_unicode()
-    processor.group_flag_ranges()
-    processor.group_nfd_ranges()
 
     # build the header file
     unicode_data_h = build_unicode_data_h(args.max_codepoints)
