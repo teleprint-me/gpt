@@ -21,6 +21,7 @@ References:
 """
 
 import argparse
+import array
 import ctypes
 import dataclasses
 import logging
@@ -135,9 +136,7 @@ class Codepoint:
             general_category=fields[CodepointField.GENERAL_CATEGORY],
             cononical_cc=Codepoint.parse_int(fields[CodepointField.CONONICAL_CC]),
             bidirectional_category=fields[CodepointField.BIDIRECTIONAL_CATEGORY],
-            decomposition=Codepoint.parse_decomposition(
-                fields[CodepointField.DECOMPOSITION]
-            ),
+            decomposition=Codepoint.parse_decomposition(fields[CodepointField.DECOMPOSITION]),
             decimal_digit=fields[CodepointField.DECIMAL_DIGIT],
             digit=fields[CodepointField.DIGIT],
             numeric=fields[CodepointField.NUMERIC],
@@ -220,15 +219,19 @@ class UnicodeDataRequest:
         """return a generator to render codepoints dynamically"""
         previous = None
         for line in self.lines():
+            # parse fields
             fields = line.split(";")
             message = f"line({line}): len({len(fields)}): fields({fields})"
             assert 15 == len(fields), message
             codepoint = Codepoint.from_fields(fields)
+            # parse first
             if codepoint.name.endswith(", First>"):
                 previous = codepoint
                 continue
+            # parse last
             if previous and codepoint.name.endswith(", Last>"):
-                message = f"Expected Last after receiving First:\nfirst({previous}):\nlast({codepoint})"
+                # yield only if codepoint subsets are valid
+                message = f"Expected Last({codepoint}) after receiving First({previous})"
                 assert codepoint.is_pair(previous), message
                 for cpt in range(previous.code, codepoint.code):
                     yield Codepoint.from_codepoint(cpt, codepoint)
@@ -559,9 +562,7 @@ Generate 'unicode-data.cpp' and 'unicode-data.h'
 
 
 def get_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate 'unicode-data.cpp' and 'unicode-data.h'"
-    )
+    parser = argparse.ArgumentParser(description="Generate 'unicode-data.cpp' and 'unicode-data.h'")
 
     parser.add_argument(
         "--verbose",
@@ -657,9 +658,7 @@ def set_ranges_flags(processor: CodepointProcessor, byte_order: str = "little") 
 
 
 def set_unicode_whitespace(processor: CodepointProcessor) -> str:
-    unicode_set_whitespace = (
-        "const std::unordered_set<uint32_t> unicode_set_whitespace = {\n"
-    )
+    unicode_set_whitespace = "const std::unordered_set<uint32_t> unicode_set_whitespace = {\n"
     logger.debug(unicode_set_whitespace)
 
     for codepoint in processor.unicode_table.whitespace:
